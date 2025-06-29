@@ -1,0 +1,18 @@
+# Исключаем файл конфигурации Firebase
+GoogleService-Info.plist
+
+# Исключаем папки сборки
+DerivedData/
+build/
+
+# Исключаем настройки Xcode
+*.xcworkspace/
+*.xcuserstate
+xcuserdata/
+
+# Swift Package Manager build artifacts
+.build/
+
+# CocoaPods dependencies
+Pods/
+
