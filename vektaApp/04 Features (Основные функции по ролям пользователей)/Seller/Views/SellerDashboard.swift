@@ -3,7 +3,8 @@ import FirebaseAuth
 
 struct SellerDashboard: View {
     
-    // 📧 Информация о пользователе
+    // 📱 Состояние для навигации
+    @State private var showingKaspiTokenView = false
     @State private var userEmail = Auth.auth().currentUser?.email ?? "Неизвестный"
     
     var body: some View {
@@ -14,7 +15,7 @@ struct SellerDashboard: View {
                     // 👋 Приветствие
                     welcomeSection
                     
-                    // 📊 Статистика (пока заглушки)
+                    // 📊 Статистика
                     statsSection
                     
                     // 🔧 Основные функции
@@ -27,6 +28,9 @@ struct SellerDashboard: View {
             }
             .navigationTitle("Seller Panel")
             .navigationBarTitleDisplayMode(.large)
+        }
+        .sheet(isPresented: $showingKaspiTokenView) {
+            KaspiAPITokenView()
         }
     }
 }
@@ -50,7 +54,6 @@ extension SellerDashboard {
                 
                 Spacer()
                 
-                // Статус (пока заглушка)
                 VStack(spacing: 4) {
                     Circle()
                         .fill(Color.orange)
@@ -67,7 +70,7 @@ extension SellerDashboard {
         .cornerRadius(16)
     }
     
-    // 📊 Статистика (заглушки)
+    // 📊 Статистика
     private var statsSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Статистика")
@@ -91,18 +94,16 @@ extension SellerDashboard {
             
             VStack(spacing: 12) {
                 
-                // Kaspi API (пока кнопка-заглушка)
+                // 🔥 РАБОЧАЯ кнопка Kaspi API
                 FunctionButton(
                     title: "Kaspi API",
                     subtitle: "Подключить API для синхронизации",
                     icon: "creditcard.circle.fill",
                     color: .orange
                 ) {
-                    // TODO: Откроем экран настройки API
-                    print("Kaspi API нажата")
+                    showingKaspiTokenView = true  // ✅ Открываем экран
                 }
                 
-                // Товары (заглушка)
                 FunctionButton(
                     title: "Товары",
                     subtitle: "Управление каталогом товаров",
@@ -112,7 +113,6 @@ extension SellerDashboard {
                     print("Товары нажата")
                 }
                 
-                // Заказы (заглушка)
                 FunctionButton(
                     title: "Заказы",
                     subtitle: "Создание и отслеживание заказов",
@@ -164,13 +164,11 @@ struct FunctionButton: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 16) {
-                // Иконка
                 Image(systemName: icon)
                     .font(.title2)
                     .foregroundColor(color)
                     .frame(width: 40)
                 
-                // Текст
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title)
                         .font(.headline)
@@ -184,7 +182,6 @@ struct FunctionButton: View {
                 
                 Spacer()
                 
-                // Стрелка
                 Image(systemName: "chevron.right")
                     .font(.caption)
                     .foregroundColor(.secondary)

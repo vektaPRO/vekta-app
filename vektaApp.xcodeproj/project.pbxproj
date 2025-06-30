@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		4E454DE72E0E3DE900591B30 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 4E454DE62E0E3DE900591B30 /* FirebaseAuth */; };
 		4E454DE92E0E3DE900591B30 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 4E454DE82E0E3DE900591B30 /* FirebaseFirestore */; };
+		4EE757242E1310DB00BD34CE /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 4EE757232E1310DB00BD34CE /* FirebaseCore */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -58,6 +59,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				4E454DE72E0E3DE900591B30 /* FirebaseAuth in Frameworks */,
+				4EE757242E1310DB00BD34CE /* FirebaseCore in Frameworks */,
 				4E454DE92E0E3DE900591B30 /* FirebaseFirestore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -121,6 +123,7 @@
 			packageProductDependencies = (
 				4E454DE62E0E3DE900591B30 /* FirebaseAuth */,
 				4E454DE82E0E3DE900591B30 /* FirebaseFirestore */,
+				4EE757232E1310DB00BD34CE /* FirebaseCore */,
 			);
 			productName = vektaApp;
 			productReference = 4E454DAF2E0E3B8000591B30 /* vektaApp.app */;
@@ -584,6 +587,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 4E454DE52E0E3DE900591B30 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseFirestore;
+		};
+		4EE757232E1310DB00BD34CE /* FirebaseCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4E454DE52E0E3DE900591B30 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseCore;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
