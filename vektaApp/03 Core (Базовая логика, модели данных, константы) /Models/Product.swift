@@ -6,7 +6,7 @@
 //
 
 import Foundation
-import FirebaseCore
+import FirebaseFirestore
 
 // 📦 Модель товара для всего приложения
 struct Product: Identifiable, Codable {

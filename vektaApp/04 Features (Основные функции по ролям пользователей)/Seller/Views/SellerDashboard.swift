@@ -5,6 +5,7 @@ struct SellerDashboard: View {
     
     // 📱 Состояние для навигации
     @State private var showingKaspiTokenView = false
+    @State private var showingProductsView = false
     @State private var userEmail = Auth.auth().currentUser?.email ?? "Неизвестный"
     
     var body: some View {
@@ -31,6 +32,9 @@ struct SellerDashboard: View {
         }
         .sheet(isPresented: $showingKaspiTokenView) {
             KaspiAPITokenView()
+        }
+        .sheet(isPresented: $showingProductsView) {
+            ProductsView()
         }
     }
 }
@@ -104,13 +108,14 @@ extension SellerDashboard {
                     showingKaspiTokenView = true  // ✅ Открываем экран
                 }
                 
+                // 🔥 РАБОЧАЯ кнопка Товары
                 FunctionButton(
                     title: "Товары",
                     subtitle: "Управление каталогом товаров",
                     icon: "cube.box.fill",
                     color: .blue
                 ) {
-                    print("Товары нажата")
+                    showingProductsView = true  // ✅ Открываем экран товаров
                 }
                 
                 FunctionButton(
