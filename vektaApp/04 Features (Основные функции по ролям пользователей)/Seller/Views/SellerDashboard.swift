@@ -1,5 +1,5 @@
 //
-//  OrdersListView.swift
+//  SellerDashboard.swift
 //  vektaApp
 //
 //  Created by Almas Kadeshov on 02.07.2025.
@@ -7,177 +7,220 @@
 
 import SwiftUI
 
-struct OrdersListView: View {
+struct SellerDashboard: View {
     
-    @StateObject private var viewModel = OrdersViewModel()
-    @Environment(\.dismiss) private var dismiss
+    @StateObject private var ordersViewModel = OrdersViewModel()
+    @StateObject private var productsViewModel = ProductsViewModel()
+    
+    @State private var showingOrders = false
+    @State private var showingProducts = false
     @State private var showingCreateOrder = false
-    @State private var selectedOrder: Order?
+    @State private var showingKaspiToken = false
     
     var body: some View {
         NavigationView {
-            VStack(spacing: 0) {
-                
-                // 📊 Статистика заказов
-                if !viewModel.isLoading && !viewModel.orders.isEmpty {
-                    statsHeaderView
+            ScrollView {
+                VStack(spacing: 24) {
+                    
+                    // Приветствие
+                    headerSection
+                    
+                    // Быстрые действия
+                    quickActionsSection
+                    
+                    // Статистика
+                    statisticsSection
+                    
+                    // Последние заказы
+                    recentOrdersSection
+                    
+                    Spacer(minLength: 100)
                 }
-                
-                // 🔍 Поиск и фильтры
-                searchAndFiltersView
-                
-                // 📦 Список заказов
-                ordersListView
+                .padding(.horizontal, 20)
+                .padding(.top, 20)
             }
-            .navigationTitle("Мои заказы")
+            .navigationTitle("Продавец")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Готово") {
-                        dismiss()
-                    }
-                }
-                
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: {
-                        showingCreateOrder = true
+                        showingKaspiToken = true
                     }) {
-                        Image(systemName: "plus.circle.fill")
-                            .foregroundColor(.blue)
+                        Image(systemName: "gear")
                     }
                 }
             }
             .refreshable {
-                viewModel.refreshOrders()
+                ordersViewModel.refreshOrders()
+                productsViewModel.refreshProducts()
             }
+        }
+        .sheet(isPresented: $showingOrders) {
+            OrdersListView()
+        }
+        .sheet(isPresented: $showingProducts) {
+            ProductsView()
         }
         .sheet(isPresented: $showingCreateOrder) {
             CreateOrderView()
         }
-        .sheet(item: $selectedOrder) { order in
-            OrderDetailView(order: order)
+        .sheet(isPresented: $showingKaspiToken) {
+            KaspiAPITokenView()
+        }
+        .onAppear {
+            ordersViewModel.loadOrders()
+            productsViewModel.loadProducts()
         }
     }
 }
 
 // MARK: - Компоненты интерфейса
-extension OrdersListView {
+extension SellerDashboard {
     
-    // 📊 Статистика в шапке
-    private var statsHeaderView: some View {
-        HStack(spacing: 16) {
-            OrderStatBadge(
-                title: "Всего",
-                value: "\(viewModel.totalOrders)",
-                color: .blue
-            )
+    // 👋 Приветствие
+    private var headerSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Добро пожаловать!")
+                .font(.title)
+                .fontWeight(.bold)
             
-            OrderStatBadge(
-                title: "В ожидании",
-                value: "\(viewModel.pendingOrders)",
-                color: .orange
-            )
-            
-            OrderStatBadge(
-                title: "Отправлено",
-                value: "\(viewModel.shippedOrders)",
-                color: .purple
-            )
-            
-            OrderStatBadge(
-                title: "Завершено",
-                value: "\(viewModel.completedOrders)",
-                color: .green
-            )
+            Text("Управляйте вашими товарами и заказами на склад")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(Color(UIColor.systemGray6))
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
     
-    // 🔍 Поиск и фильтры
-    private var searchAndFiltersView: some View {
-        VStack(spacing: 12) {
+    // ⚡ Быстрые действия
+    private var quickActionsSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Быстрые действия")
+                .font(.headline)
+                .fontWeight(.semibold)
             
-            // Поле поиска
-            HStack {
-                Image(systemName: "magnifyingglass")
-                    .foregroundColor(.secondary)
+            LazyVGrid(columns: [
+                GridItem(.flexible()),
+                GridItem(.flexible())
+            ], spacing: 12) {
                 
-                TextField("Поиск заказов...", text: $viewModel.searchText)
-                    .textFieldStyle(PlainTextFieldStyle())
+                QuickActionCard(
+                    icon: "plus.circle.fill",
+                    title: "Создать заказ",
+                    subtitle: "Новый заказ на склад",
+                    color: .blue
+                ) {
+                    showingCreateOrder = true
+                }
                 
-                if !viewModel.searchText.isEmpty {
-                    Button(action: {
-                        viewModel.searchText = ""
-                    }) {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(.secondary)
-                    }
+                QuickActionCard(
+                    icon: "list.bullet.rectangle",
+                    title: "Мои заказы",
+                    subtitle: "Все заказы",
+                    color: .purple
+                ) {
+                    showingOrders = true
+                }
+                
+                QuickActionCard(
+                    icon: "cube.box.fill",
+                    title: "Товары",
+                    subtitle: "Каталог товаров",
+                    color: .orange
+                ) {
+                    showingProducts = true
+                }
+                
+                QuickActionCard(
+                    icon: "creditcard.circle.fill",
+                    title: "Kaspi API",
+                    subtitle: "Настройки",
+                    color: .green
+                ) {
+                    showingKaspiToken = true
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+        }
+    }
+    
+    // 📊 Статистика
+    private var statisticsSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Статистика")
+                .font(.headline)
+                .fontWeight(.semibold)
+            
+            VStack(spacing: 12) {
+                // Заказы
+                StatisticsRow(
+                    icon: "doc.text.fill",
+                    title: "Заказы",
+                    value: "\(ordersViewModel.totalOrders)",
+                    subtitle: "Всего заказов",
+                    color: .blue
+                )
+                
+                // Товары
+                StatisticsRow(
+                    icon: "cube.box.fill",
+                    title: "Товары",
+                    value: "\(productsViewModel.totalProducts)",
+                    subtitle: "В каталоге",
+                    color: .orange
+                )
+                
+                // Ожидающие заказы
+                StatisticsRow(
+                    icon: "clock.fill",
+                    title: "В ожидании",
+                    value: "\(ordersViewModel.pendingOrders)",
+                    subtitle: "Готовы к отправке",
+                    color: .yellow
+                )
+                
+                // Общая стоимость
+                StatisticsRow(
+                    icon: "tenge.circle.fill",
+                    title: "Стоимость",
+                    value: ordersViewModel.formattedTotalValue,
+                    subtitle: "Всех заказов",
+                    color: .green
+                )
+            }
+            .padding(16)
             .background(Color(UIColor.systemGray6))
-            .cornerRadius(8)
-            
-            // Фильтры
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    
-                    // Фильтр по статусу
-                    ForEach(OrderStatus.allCases, id: \.rawValue) { status in
-                        FilterChip(
-                            title: status.rawValue,
-                            isSelected: viewModel.selectedStatus == status,
-                            color: viewModel.colorForStatus(status)
-                        ) {
-                            viewModel.selectedStatus = (viewModel.selectedStatus == status) ? nil : status
-                        }
-                    }
-                    
-                    // Разделитель
-                    Divider()
-                        .frame(height: 20)
-                    
-                    // Фильтр по складам
-                    ForEach(viewModel.warehouses, id: \.self) { warehouse in
-                        FilterChip(
-                            title: warehouse,
-                            isSelected: viewModel.selectedWarehouse == warehouse,
-                            color: .blue
-                        ) {
-                            viewModel.selectedWarehouse = warehouse
-                        }
-                    }
-                }
-                .padding(.horizontal, 16)
-            }
+            .cornerRadius(12)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
     }
     
-    // 📦 Список заказов
-    private var ordersListView: some View {
-        Group {
-            if viewModel.isLoading {
+    // 📦 Последние заказы
+    private var recentOrdersSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Text("Последние заказы")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                
+                Spacer()
+                
+                Button("Все заказы") {
+                    showingOrders = true
+                }
+                .font(.subheadline)
+                .foregroundColor(.blue)
+            }
+            
+            if ordersViewModel.isLoading {
                 LoadingView("Загружаем заказы...")
-            } else if viewModel.filteredOrders.isEmpty {
-                OrdersEmptyStateView {
+                    .frame(height: 150)
+            } else if ordersViewModel.orders.isEmpty {
+                EmptyRecentOrdersView {
                     showingCreateOrder = true
                 }
             } else {
-                ScrollView {
-                    LazyVStack(spacing: 12) {
-                        ForEach(viewModel.filteredOrders) { order in
-                            OrderCard(order: order) {
-                                selectedOrder = order
-                            }
-                        }
+                VStack(spacing: 8) {
+                    ForEach(Array(ordersViewModel.orders.prefix(3))) { order in
+                        CompactOrderCard(order: order)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 100)
                 }
             }
         }
@@ -186,109 +229,34 @@ extension OrdersListView {
 
 // MARK: - UI Компоненты
 
-/// Статистический бейдж для заказов
-struct OrderStatBadge: View {
+/// Карточка быстрого действия
+struct QuickActionCard: View {
+    let icon: String
     let title: String
-    let value: String
+    let subtitle: String
     let color: Color
+    let action: () -> Void
     
     var body: some View {
-        VStack(spacing: 4) {
-            Text(value)
-                .font(.headline)
-                .fontWeight(.bold)
-                .foregroundColor(color)
-            
-            Text(title)
-                .font(.caption)
-                .foregroundColor(.secondary)
-        }
-        .frame(maxWidth: .infinity)
-    }
-}
-
-/// Карточка заказа
-struct OrderCard: View {
-    let order: Order
-    let onTap: () -> Void
-    
-    var body: some View {
-        Button(action: onTap) {
-            VStack(alignment: .leading, spacing: 12) {
+        Button(action: action) {
+            VStack(spacing: 12) {
+                Image(systemName: icon)
+                    .font(.system(size: 32))
+                    .foregroundColor(color)
                 
-                // Заголовок заказа
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(order.orderNumber)
-                            .font(.headline)
-                            .foregroundColor(.primary)
-                        
-                        Text(order.warehouseName)
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    }
+                VStack(spacing: 4) {
+                    Text(title)
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.primary)
                     
-                    Spacer()
-                    
-                    // Статус
-                    HStack(spacing: 4) {
-                        Image(systemName: order.statusIcon)
-                            .foregroundColor(Color(order.statusColor))
-                        
-                        Text(order.status.rawValue)
-                            .font(.caption)
-                            .fontWeight(.medium)
-                            .foregroundColor(Color(order.statusColor))
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color(order.statusColor).opacity(0.1))
-                    .cornerRadius(12)
-                }
-                
-                // Информация о заказе
-                HStack {
-                    InfoPill(
-                        icon: "cube.box",
-                        text: "\(order.totalItems) шт",
-                        color: .blue
-                    )
-                    
-                    InfoPill(
-                        icon: "tenge.circle",
-                        text: order.formattedTotalValue,
-                        color: .green
-                    )
-                    
-                    if order.priority != .normal {
-                        InfoPill(
-                            icon: order.priority.iconName,
-                            text: order.priority.rawValue,
-                            color: Color(order.priority.color)
-                        )
-                    }
-                    
-                    Spacer()
-                }
-                
-                // Дата создания
-                HStack {
-                    Image(systemName: "calendar")
-                        .foregroundColor(.secondary)
-                        .font(.caption)
-                    
-                    Text(DateFormatter.shortDateTime.string(from: order.createdAt))
+                    Text(subtitle)
                         .font(.caption)
                         .foregroundColor(.secondary)
-                    
-                    Spacer()
-                    
-                    Image(systemName: "chevron.right")
-                        .foregroundColor(.secondary)
-                        .font(.caption)
                 }
             }
-            .padding(16)
+            .frame(maxWidth: .infinity)
+            .padding(20)
             .background(Color(UIColor.systemBackground))
             .cornerRadius(12)
             .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
@@ -297,196 +265,125 @@ struct OrderCard: View {
     }
 }
 
-/// Информационная таблетка
-struct InfoPill: View {
+/// Строка статистики
+struct StatisticsRow: View {
     let icon: String
-    let text: String
+    let title: String
+    let value: String
+    let subtitle: String
     let color: Color
     
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 16) {
             Image(systemName: icon)
-                .font(.caption)
-            Text(text)
-                .font(.caption)
-                .fontWeight(.medium)
+                .font(.title2)
+                .foregroundColor(color)
+                .frame(width: 32)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundColor(.primary)
+                
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            Spacer()
+            
+            Text(value)
+                .font(.title3)
+                .fontWeight(.bold)
+                .foregroundColor(color)
         }
-        .foregroundColor(color)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(color.opacity(0.1))
-        .cornerRadius(8)
     }
 }
 
-/// Пустое состояние для заказов
-struct OrdersEmptyStateView: View {
+/// Компактная карточка заказа
+struct CompactOrderCard: View {
+    let order: Order
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // Статус индикатор
+            Circle()
+                .fill(Color(order.statusColor))
+                .frame(width: 12, height: 12)
+            
+            // Информация о заказе
+            VStack(alignment: .leading, spacing: 2) {
+                Text(order.orderNumber)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                
+                Text(order.warehouseName)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            Spacer()
+            
+            // Статус и дата
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(order.status.rawValue)
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundColor(Color(order.statusColor))
+                
+                Text(DateFormatter.shortDate.string(from: order.createdAt))
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(12)
+        .background(Color(UIColor.systemBackground))
+        .cornerRadius(8)
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color(order.statusColor).opacity(0.2), lineWidth: 1)
+        )
+    }
+}
+
+/// Пустое состояние для последних заказов
+struct EmptyRecentOrdersView: View {
     let onCreateOrder: () -> Void
     
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 12) {
             Image(systemName: "doc.text.below.ecg")
-                .font(.system(size: 60))
+                .font(.system(size: 40))
                 .foregroundColor(.secondary)
             
-            VStack(spacing: 8) {
-                Text("Заказов пока нет")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                
-                Text("Создайте первый заказ на отправку товаров на склад")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 40)
-            }
+            Text("Заказов пока нет")
+                .font(.subheadline)
+                .fontWeight(.medium)
             
-            Button(action: onCreateOrder) {
-                HStack {
-                    Image(systemName: "plus.circle.fill")
-                    Text("Создать заказ")
-                }
-                .fontWeight(.semibold)
-                .padding(.horizontal, 24)
-                .padding(.vertical, 12)
-                .background(Color.blue)
-                .foregroundColor(.white)
-                .cornerRadius(12)
+            Text("Создайте первый заказ на отправку товаров")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+            
+            Button("Создать заказ") {
+                onCreateOrder()
             }
+            .font(.caption)
+            .fontWeight(.semibold)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 6)
+            .background(Color.blue)
+            .foregroundColor(.white)
+            .cornerRadius(8)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity)
+        .padding(20)
+        .background(Color(UIColor.systemGray6))
+        .cornerRadius(12)
     }
-}
-
-/// Детальный просмотр заказа
-struct OrderDetailView: View {
-    let order: Order
-    @Environment(\.dismiss) private var dismiss
-    @State private var showingQRCode = false
-    
-    var body: some View {
-        NavigationView {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    
-                    // Заголовок
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(order.orderNumber)
-                            .font(.title)
-                            .fontWeight(.bold)
-                        
-                        HStack {
-                            Image(systemName: order.statusIcon)
-                                .foregroundColor(Color(order.statusColor))
-                            
-                            Text(order.status.rawValue)
-                                .font(.headline)
-                                .foregroundColor(Color(order.statusColor))
-                            
-                            Spacer()
-                            
-                            Text(DateFormatter.shortDateTime.string(from: order.createdAt))
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                    
-                    // QR-код кнопка
-                    Button(action: {
-                        showingQRCode = true
-                    }) {
-                        HStack {
-                            Image(systemName: "qrcode")
-                            Text("Показать QR-код")
-                        }
-                        .fontWeight(.semibold)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.blue)
-                        .foregroundColor(.white)
-                        .cornerRadius(12)
-                    }
-                    
-                    // Информация о заказе (переиспользуем из QRCodeView)
-                    VStack(alignment: .leading, spacing: 16) {
-                        Text("Информация о заказе")
-                            .font(.headline)
-                        
-                        VStack(spacing: 12) {
-                            OrderInfoRow(
-                                icon: "building.2.fill",
-                                title: "Склад:",
-                                value: order.warehouseName,
-                                color: .green
-                            )
-                            
-                            OrderInfoRow(
-                                icon: "cube.box.fill",
-                                title: "Товаров:",
-                                value: "\(order.totalItems) шт",
-                                color: .orange
-                            )
-                            
-                            OrderInfoRow(
-                                icon: "tenge.circle.fill",
-                                title: "Сумма:",
-                                value: order.formattedTotalValue,
-                                color: .purple
-                            )
-                        }
-                    }
-                    .padding(16)
-                    .background(Color(UIColor.systemGray6))
-                    .cornerRadius(12)
-                    
-                    // Товары
-                    VStack(alignment: .leading, spacing: 16) {
-                        Text("Товары в заказе")
-                            .font(.headline)
-                        
-                        VStack(spacing: 8) {
-                            ForEach(order.items) { item in
-                                OrderItemRow(item: item)
-                            }
-                        }
-                    }
-                    .padding(16)
-                    .background(Color(UIColor.systemGray6))
-                    .cornerRadius(12)
-                    
-                    Spacer(minLength: 50)
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 20)
-            }
-            .navigationTitle("Детали заказа")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Готово") {
-                        dismiss()
-                    }
-                }
-            }
-        }
-        .sheet(isPresented: $showingQRCode) {
-            QRCodeView(order: order) {
-                showingQRCode = false
-            }
-        }
-    }
-}
-
-// MARK: - Расширения
-extension DateFormatter {
-    static let shortDateTime: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .short
-        formatter.timeStyle = .short
-        return formatter
-    }()
 }
 
 #Preview {
-    OrdersListView()
+    SellerDashboard()
 }
