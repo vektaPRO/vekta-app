@@ -178,7 +178,7 @@ struct QRCodeView: View {
                             OrderInfoRow(
                                 icon: "calendar",
                                 title: "Дата создания:",
-                                value: DateFormatter.shortDate.string(from: order.createdAt),
+                                value: DateFormatter.mediumDateFormatter.string(from: order.createdAt),
                                 color: .blue
                             )
                             
@@ -239,7 +239,7 @@ struct QRCodeView: View {
     }
 }
 
-// MARK: - Шаг инструкции (переиспользуем из KaspiAPITokenView)
+// MARK: - Шаг инструкции
 struct InstructionStep: View {
     let number: String
     let text: String
@@ -267,9 +267,16 @@ struct InstructionStep: View {
 
 // MARK: - Расширения DateFormatter
 extension DateFormatter {
-    static let shortDate: DateFormatter = {
+    static let mediumDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
+        return formatter
+    }()
+    
+    static let shortDateTimeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .short
+        formatter.timeStyle = .short
         return formatter
     }()
 }

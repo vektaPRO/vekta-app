@@ -68,6 +68,60 @@ enum ProductStatus: String, CaseIterable, Codable {
     }
 }
 
+// 🏭 Расширение для работы с Firestore
+extension Product {
+    
+    // Создание Product из Firestore документа
+    static func fromFirestore(_ data: [String: Any], id: String) -> Product? {
+        guard
+            let kaspiProductId = data["kaspiProductId"] as? String,
+            let name = data["name"] as? String,
+            let description = data["description"] as? String,
+            let price = data["price"] as? Double,
+            let category = data["category"] as? String,
+            let imageURL = data["imageURL"] as? String,
+            let statusRaw = data["status"] as? String,
+            let status = ProductStatus(rawValue: statusRaw),
+            let warehouseStock = data["warehouseStock"] as? [String: Int],
+            let createdAtTimestamp = data["createdAt"] as? Timestamp,
+            let updatedAtTimestamp = data["updatedAt"] as? Timestamp,
+            let isActive = data["isActive"] as? Bool
+        else { return nil }
+        
+        return Product(
+            id: id,
+            kaspiProductId: kaspiProductId,
+            name: name,
+            description: description,
+            price: price,
+            category: category,
+            imageURL: imageURL,
+            status: status,
+            warehouseStock: warehouseStock,
+            createdAt: createdAtTimestamp.dateValue(),
+            updatedAt: updatedAtTimestamp.dateValue(),
+            isActive: isActive
+        )
+    }
+    
+    // Конвертация в Dictionary для сохранения в Firestore
+    func toDictionary() -> [String: Any] {
+        return [
+            "kaspiProductId": kaspiProductId,
+            "name": name,
+            "description": description,
+            "price": price,
+            "category": category,
+            "imageURL": imageURL,
+            "status": status.rawValue,
+            "warehouseStock": warehouseStock,
+            "createdAt": Timestamp(date: createdAt),
+            "updatedAt": Timestamp(date: updatedAt),
+            "isActive": isActive
+        ]
+    }
+}
+
 // 🧪 Тестовые данные
 extension Product {
     static let sampleProducts: [Product] = [
