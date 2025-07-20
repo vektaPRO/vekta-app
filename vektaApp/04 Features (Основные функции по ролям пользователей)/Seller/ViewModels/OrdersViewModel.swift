@@ -8,6 +8,37 @@
 import SwiftUI
 import FirebaseFirestore
 import FirebaseAuth
+import CoreImage // ← Добавили импорт для QR-кода
+import CoreImage.CIFilterBuiltins
+
+// MARK: - Errors
+enum OrdersError: LocalizedError {
+    case authenticationRequired
+    case networkError
+    case invalidData
+    case orderNotFound
+    
+    var errorDescription: String? {
+        switch self {
+        case .authenticationRequired:
+            return "Требуется авторизация"
+        case .networkError:
+            return "Ошибка сети"
+        case .invalidData:
+            return "Некорректные данные"
+        case .orderNotFound:
+            return "Заказ не найден"
+        }
+    }
+}
+
+// MARK: - Statistics
+struct OrdersStatistics {
+    let totalOrders: Int
+    let totalValue: Double
+    let averageOrderValue: Double
+    let statusBreakdown: [OrderStatus: Int]
+}
 
 // 🧠 ViewModel для управления заказами на склад
 class OrdersViewModel: ObservableObject {
@@ -174,6 +205,20 @@ class OrdersViewModel: ObservableObject {
             return false
         }
         
+        // ✅ Добавили валидацию
+        do {
+            try validateOrderData(
+                selectedProducts: selectedProducts,
+                warehouseName: warehouseName,
+                notes: notes
+            )
+        } catch {
+            await MainActor.run {
+                self.errorMessage = error.localizedDescription
+            }
+            return false
+        }
+        
         await MainActor.run {
             isLoading = true
             errorMessage = nil
@@ -249,7 +294,7 @@ class OrdersViewModel: ObservableObject {
     // 💾 Сохранить заказ в Firestore
     private func saveOrderToFirestore(_ order: Order) async throws {
         guard let userId = Auth.auth().currentUser?.uid else {
-            throw NSError(domain: "AuthError", code: 401, userInfo: [NSLocalizedDescriptionKey: "Пользователь не авторизован"])
+            throw OrdersError.authenticationRequired
         }
         
         // TODO: Реальное сохранение в Firestore
@@ -266,37 +311,43 @@ class OrdersViewModel: ObservableObject {
     
     // MARK: - Управление заказами
     
-    // 📝 Обновить статус заказа
+    // 📝 Обновить статус заказа (УЛУЧШЕННАЯ ВЕРСИЯ)
     func updateOrderStatus(_ order: Order, newStatus: OrderStatus) async {
         await MainActor.run {
             isLoading = true
+            errorMessage = nil
         }
         
-        // TODO: Обновление в Firestore
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            if let index = self.orders.firstIndex(where: { $0.id == order.id }) {
-                var updatedOrder = self.orders[index]
-                // Обновляем статус (это упрощение, в реальности нужно создать новый Order)
-                self.orders[index] = Order(
-                    id: updatedOrder.id,
-                    orderNumber: updatedOrder.orderNumber,
-                    sellerId: updatedOrder.sellerId,
-                    sellerEmail: updatedOrder.sellerEmail,
-                    warehouseId: updatedOrder.warehouseId,
-                    warehouseName: updatedOrder.warehouseName,
-                    items: updatedOrder.items,
-                    notes: updatedOrder.notes,
-                    status: newStatus,
-                    priority: updatedOrder.priority,
-                    createdAt: updatedOrder.createdAt,
-                    updatedAt: Date(),
-                    estimatedDelivery: updatedOrder.estimatedDelivery,
-                    qrCodeData: updatedOrder.qrCodeData
-                )
-                self.filterOrders()
+        do {
+            // Находим индекс заказа
+            guard let index = orders.firstIndex(where: { $0.id == order.id }) else {
+                throw OrdersError.orderNotFound
             }
-            self.isLoading = false
-            self.successMessage = "Статус заказа обновлен"
+            
+            // Создаем обновленный заказ (неизменяемый подход)
+            let updatedOrder = order.updatingStatus(newStatus)
+            
+            // TODO: Сохранение в Firestore
+            try await saveOrderToFirestore(updatedOrder)
+            
+            await MainActor.run {
+                // Обновляем локальные данные
+                self.orders[index] = updatedOrder
+                self.filterOrders()
+                self.isLoading = false
+                self.successMessage = "✅ Статус заказа обновлен"
+                
+                // Очищаем сообщение через 3 секунды
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                    self.successMessage = nil
+                }
+            }
+            
+        } catch {
+            await MainActor.run {
+                self.isLoading = false
+                self.errorMessage = error.localizedDescription
+            }
         }
     }
     
@@ -374,6 +425,48 @@ class OrdersViewModel: ObservableObject {
         formatter.currencyCode = "KZT"
         formatter.maximumFractionDigits = 0
         return formatter.string(from: NSNumber(value: totalOrdersValue)) ?? "\(Int(totalOrdersValue)) ₸"
+    }
+    
+    // 🔍 Найти заказ по ID
+    func findOrder(by id: String) -> Order? {
+        return orders.first { $0.id == id }
+    }
+    
+    // 📊 Статистика за период
+    func getOrdersStatistics(for period: DateInterval) -> OrdersStatistics {
+        let periodOrders = orders.filter { period.contains($0.createdAt) }
+        
+        return OrdersStatistics(
+            totalOrders: periodOrders.count,
+            totalValue: periodOrders.reduce(0) { $0 + $1.totalValue },
+            averageOrderValue: periodOrders.isEmpty ? 0 : periodOrders.reduce(0) { $0 + $1.totalValue } / Double(periodOrders.count),
+            statusBreakdown: Dictionary(grouping: periodOrders, by: { $0.status })
+                .mapValues { $0.count }
+        )
+    }
+    
+    // ✅ Валидация данных заказа
+    private func validateOrderData(
+        selectedProducts: [Product: Int],
+        warehouseName: String,
+        notes: String
+    ) throws {
+        // Проверяем что выбраны товары
+        guard !selectedProducts.isEmpty else {
+            throw OrdersError.invalidData
+        }
+        
+        // Проверяем что выбран склад
+        guard !warehouseName.trimmingCharacters(in: .whitespaces).isEmpty else {
+            throw OrdersError.invalidData
+        }
+        
+        // Проверяем что количества корректные
+        for (_, quantity) in selectedProducts {
+            guard quantity > 0 else {
+                throw OrdersError.invalidData
+            }
+        }
     }
 }
 

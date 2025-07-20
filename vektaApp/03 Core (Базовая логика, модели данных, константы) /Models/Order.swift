@@ -372,3 +372,25 @@ extension Order {
         return "ORDER:\(orderNumber):\(sellerId):\(warehouseId)"
     }
 }
+// Добавьте это расширение в Order.swift
+
+extension Order {
+    func updatingStatus(_ newStatus: OrderStatus) -> Order {
+        return Order(
+            id: self.id,
+            orderNumber: self.orderNumber,
+            sellerId: self.sellerId,
+            sellerEmail: self.sellerEmail,
+            warehouseId: self.warehouseId,
+            warehouseName: self.warehouseName,
+            items: self.items,
+            notes: self.notes,
+            status: newStatus,
+            priority: self.priority,
+            createdAt: self.createdAt,
+            updatedAt: Date(), // Обновляем время
+            estimatedDelivery: self.estimatedDelivery,
+            qrCodeData: self.qrCodeData
+        )
+    }
+}
