@@ -117,33 +117,33 @@ class OrdersViewModel: ObservableObject {
         
         // TODO: Реальная загрузка из Firestore
         /*
-        listener = db.collection("sellers").document(userId)
-            .collection("orders")
-            .order(by: "createdAt", descending: true)
-            .addSnapshotListener { [weak self] snapshot, error in
-                
-                DispatchQueue.main.async {
-                    self?.isLoading = false
-                    
-                    if let error = error {
-                        self?.errorMessage = "Ошибка загрузки: \(error.localizedDescription)"
-                        return
-                    }
-                    
-                    guard let documents = snapshot?.documents else {
-                        self?.orders = []
-                        self?.filterOrders()
-                        return
-                    }
-                    
-                    self?.orders = documents.compactMap { doc in
-                        Order.fromFirestore(doc.data(), id: doc.documentID)
-                    }
-                    
-                    self?.filterOrders()
-                }
-            }
-        */
+         listener = db.collection("sellers").document(userId)
+         .collection("orders")
+         .order(by: "createdAt", descending: true)
+         .addSnapshotListener { [weak self] snapshot, error in
+         
+         DispatchQueue.main.async {
+         self?.isLoading = false
+         
+         if let error = error {
+         self?.errorMessage = "Ошибка загрузки: \(error.localizedDescription)"
+         return
+         }
+         
+         guard let documents = snapshot?.documents else {
+         self?.orders = []
+         self?.filterOrders()
+         return
+         }
+         
+         self?.orders = documents.compactMap { doc in
+         Order.fromFirestore(doc.data(), id: doc.documentID)
+         }
+         
+         self?.filterOrders()
+         }
+         }
+         */
     }
     
     // 🔄 Обновить заказы
@@ -302,11 +302,11 @@ class OrdersViewModel: ObservableObject {
         try await Task.sleep(nanoseconds: 1_500_000_000) // 1.5 секунды
         
         /*
-        let orderData = order.toDictionary()
-        try await db.collection("sellers").document(userId)
-            .collection("orders").document(order.id)
-            .setData(orderData)
-        */
+         let orderData = order.toDictionary()
+         try await db.collection("sellers").document(userId)
+         .collection("orders").document(order.id)
+         .setData(orderData)
+         */
     }
     
     // MARK: - Управление заказами
@@ -368,128 +368,158 @@ class OrdersViewModel: ObservableObject {
         return order.qrCodeData
     }
     
-    // 🖼️ Создать изображение QR-кода
     func createQRCodeImage(from string: String) -> UIImage? {
-        let data = string.data(using: String.Encoding.ascii)
+        // Сократим данные для QR-кода
+        let qrData = createCompactQRData(from: string)
         
-        if let filter = CIFilter(name: "CIQRCodeGenerator") {
-            filter.setValue(data, forKey: "inputMessage")
-            let transform = CGAffineTransform(scaleX: 3, y: 3)
+        guard let data = qrData.data(using: .utf8) else {
+            print("❌ Не удалось конвертировать строку в Data")
+            return nil
+        }
+        
+        guard let filter = CIFilter(name: "CIQRCodeGenerator") else {
+            print("❌ QR фильтр недоступен")
+            return nil
+        }
+        
+        filter.setValue(data, forKey: "inputMessage")
+        filter.setValue("H", forKey: "inputCorrectionLevel") // Высокий уровень коррекции
+        
+        guard let outputImage = filter.outputImage else {
+            print("❌ Не удалось создать QR изображение")
+            return nil
+        }
+        
+        // Увеличиваем размер QR-кода
+        let scaleX = 300.0 / outputImage.extent.size.width
+        let scaleY = 300.0 / outputImage.extent.size.height
+        let transformedImage = outputImage.transformed(by: CGAffineTransform(scaleX: scaleX, y: scaleY))
+        
+        let context = CIContext()
+        guard let cgImage = context.createCGImage(transformedImage, from: transformedImage.extent) else {
+            print("❌ Не удалось создать CGImage")
+            return nil
+        }
+        
+        print("✅ QR-код успешно создан")
+        return UIImage(cgImage: cgImage)
+    }
+    private func createCompactQRData(from originalData: String) -> String {
+        // Извлекаем номер заказа из оригинальных данных
+        let components = originalData.split(separator: ":")
+        if components.count >= 2 {
+            let orderNumber = String(components[1])
+            // Возвращаем только номер заказа - этого достаточно для идентификации
+            return orderNumber
+        }
+        
+        // Если не удалось извлечь, используем первые 50 символов
+        return String(originalData.prefix(50))
+        
+        // MARK: - Вспомогательные методы
+        
+        // 🎨 Получить цвет для статуса
+        func colorForStatus(_ status: OrderStatus) -> Color {
+            switch status {
+            case .draft: return .gray
+            case .pending: return .orange
+            case .shipped: return .blue
+            case .received: return .green
+            case .completed: return .green
+            case .cancelled: return .red
+            }
+        }
+        
+        // 🔍 Очистить фильтры
+        func clearFilters() {
+            searchText = ""
+            selectedStatus = nil
+            selectedWarehouse = "Все"
+        }
+        
+        // 📊 Получить процент завершенных заказов
+        var completionPercentage: Double {
+            guard totalOrders > 0 else { return 0 }
+            return Double(completedOrders) / Double(totalOrders) * 100
+        }
+        
+        // 💰 Общая стоимость всех заказов
+        var totalOrdersValue: Double {
+            orders.reduce(0) { $0 + $1.totalValue }
+        }
+        
+        var formattedTotalValue: String {
+            let formatter = NumberFormatter()
+            formatter.numberStyle = .currency
+            formatter.currencyCode = "KZT"
+            formatter.maximumFractionDigits = 0
+            return formatter.string(from: NSNumber(value: totalOrdersValue)) ?? "\(Int(totalOrdersValue)) ₸"
+        }
+        
+        // 🔍 Найти заказ по ID
+        func findOrder(by id: String) -> Order? {
+            return orders.first { $0.id == id }
+        }
+        
+        // 📊 Статистика за период
+        func getOrdersStatistics(for period: DateInterval) -> OrdersStatistics {
+            let periodOrders = orders.filter { period.contains($0.createdAt) }
             
-            if let output = filter.outputImage?.transformed(by: transform) {
-                let context = CIContext()
-                if let cgImage = context.createCGImage(output, from: output.extent) {
-                    return UIImage(cgImage: cgImage)
+            return OrdersStatistics(
+                totalOrders: periodOrders.count,
+                totalValue: periodOrders.reduce(0) { $0 + $1.totalValue },
+                averageOrderValue: periodOrders.isEmpty ? 0 : periodOrders.reduce(0) { $0 + $1.totalValue } / Double(periodOrders.count),
+                statusBreakdown: Dictionary(grouping: periodOrders, by: { $0.status })
+                    .mapValues { $0.count }
+            )
+        }
+        
+        // ✅ Валидация данных заказа
+        private func validateOrderData(
+            selectedProducts: [Product: Int],
+            warehouseName: String,
+            notes: String
+        ) throws {
+            // Проверяем что выбраны товары
+            guard !selectedProducts.isEmpty else {
+                throw OrdersError.invalidData
+            }
+            
+            // Проверяем что выбран склад
+            guard !warehouseName.trimmingCharacters(in: .whitespaces).isEmpty else {
+                throw OrdersError.invalidData
+            }
+            
+            // Проверяем что количества корректные
+            for (_, quantity) in selectedProducts {
+                guard quantity > 0 else {
+                    throw OrdersError.invalidData
                 }
             }
         }
+    }
+    
+    // MARK: - Расширения для удобства
+    extension OrdersViewModel {
         
-        return nil
-    }
-    
-    // MARK: - Вспомогательные методы
-    
-    // 🎨 Получить цвет для статуса
-    func colorForStatus(_ status: OrderStatus) -> Color {
-        switch status {
-        case .draft: return .gray
-        case .pending: return .orange
-        case .shipped: return .blue
-        case .received: return .green
-        case .completed: return .green
-        case .cancelled: return .red
-        }
-    }
-    
-    // 🔍 Очистить фильтры
-    func clearFilters() {
-        searchText = ""
-        selectedStatus = nil
-        selectedWarehouse = "Все"
-    }
-    
-    // 📊 Получить процент завершенных заказов
-    var completionPercentage: Double {
-        guard totalOrders > 0 else { return 0 }
-        return Double(completedOrders) / Double(totalOrders) * 100
-    }
-    
-    // 💰 Общая стоимость всех заказов
-    var totalOrdersValue: Double {
-        orders.reduce(0) { $0 + $1.totalValue }
-    }
-    
-    var formattedTotalValue: String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.currencyCode = "KZT"
-        formatter.maximumFractionDigits = 0
-        return formatter.string(from: NSNumber(value: totalOrdersValue)) ?? "\(Int(totalOrdersValue)) ₸"
-    }
-    
-    // 🔍 Найти заказ по ID
-    func findOrder(by id: String) -> Order? {
-        return orders.first { $0.id == id }
-    }
-    
-    // 📊 Статистика за период
-    func getOrdersStatistics(for period: DateInterval) -> OrdersStatistics {
-        let periodOrders = orders.filter { period.contains($0.createdAt) }
-        
-        return OrdersStatistics(
-            totalOrders: periodOrders.count,
-            totalValue: periodOrders.reduce(0) { $0 + $1.totalValue },
-            averageOrderValue: periodOrders.isEmpty ? 0 : periodOrders.reduce(0) { $0 + $1.totalValue } / Double(periodOrders.count),
-            statusBreakdown: Dictionary(grouping: periodOrders, by: { $0.status })
-                .mapValues { $0.count }
-        )
-    }
-    
-    // ✅ Валидация данных заказа
-    private func validateOrderData(
-        selectedProducts: [Product: Int],
-        warehouseName: String,
-        notes: String
-    ) throws {
-        // Проверяем что выбраны товары
-        guard !selectedProducts.isEmpty else {
-            throw OrdersError.invalidData
-        }
-        
-        // Проверяем что выбран склад
-        guard !warehouseName.trimmingCharacters(in: .whitespaces).isEmpty else {
-            throw OrdersError.invalidData
-        }
-        
-        // Проверяем что количества корректные
-        for (_, quantity) in selectedProducts {
-            guard quantity > 0 else {
-                throw OrdersError.invalidData
+        // 📅 Заказы за сегодня
+        var todayOrders: [Order] {
+            let today = Calendar.current.startOfDay(for: Date())
+            let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: today)!
+            
+            return orders.filter { order in
+                order.createdAt >= today && order.createdAt < tomorrow
             }
         }
-    }
-}
-
-// MARK: - Расширения для удобства
-extension OrdersViewModel {
-    
-    // 📅 Заказы за сегодня
-    var todayOrders: [Order] {
-        let today = Calendar.current.startOfDay(for: Date())
-        let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: today)!
         
-        return orders.filter { order in
-            order.createdAt >= today && order.createdAt < tomorrow
+        // ⚡ Срочные заказы
+        var urgentOrders: [Order] {
+            orders.filter { $0.priority == .urgent && $0.status != .completed && $0.status != .cancelled }
         }
-    }
-    
-    // ⚡ Срочные заказы
-    var urgentOrders: [Order] {
-        orders.filter { $0.priority == .urgent && $0.status != .completed && $0.status != .cancelled }
-    }
-    
-    // 📦 Заказы готовые к отправке
-    var readyToShipOrders: [Order] {
-        orders.filter { $0.status == .pending }
+        
+        // 📦 Заказы готовые к отправке
+        var readyToShipOrders: [Order] {
+            orders.filter { $0.status == .pending }
+        }
     }
 }
