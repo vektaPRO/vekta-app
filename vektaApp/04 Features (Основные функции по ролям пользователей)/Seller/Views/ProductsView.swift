@@ -38,16 +38,37 @@ struct ProductsView: View {
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: {
-                        viewModel.syncWithKaspiAPI()
+                        Task {
+                            await viewModel.syncWithKaspiAPI()
+                        }
                     }) {
                         Image(systemName: "arrow.triangle.2.circlepath")
                     }
-                    .disabled(viewModel.isLoading)
+                    .disabled(viewModel.isLoading || viewModel.isSyncing)
                 }
             }
             .refreshable {
-                viewModel.refreshProducts()
+                Task {
+                    await viewModel.refreshProducts()
+                }
             }
+            .alert("Ошибка", isPresented: .constant(viewModel.errorMessage != nil)) {
+                Button("OK") {
+                    viewModel.clearMessages()
+                }
+            } message: {
+                Text(viewModel.errorMessage ?? "")
+            }
+            .alert("Успех", isPresented: .constant(viewModel.successMessage != nil)) {
+                Button("OK") {
+                    viewModel.clearMessages()
+                }
+            } message: {
+                Text(viewModel.successMessage ?? "")
+            }
+        }
+        .onAppear {
+            viewModel.loadProducts()
         }
     }
 }
@@ -75,6 +96,14 @@ extension ProductsView {
                 value: "\(viewModel.outOfStockProducts)",
                 color: .orange
             )
+            
+            if viewModel.inactiveProducts > 0 {
+                StatBadge(
+                    title: "Неактивные",
+                    value: "\(viewModel.inactiveProducts)",
+                    color: .gray
+                )
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -136,6 +165,19 @@ extension ProductsView {
                             viewModel.selectedCategory = category
                         }
                     }
+                    
+                    // Кнопка очистки фильтров
+                    if viewModel.selectedStatus != nil || viewModel.selectedCategory != "Все" || !viewModel.searchText.isEmpty {
+                        Button("Очистить") {
+                            viewModel.clearFilters()
+                        }
+                        .font(.caption)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.red.opacity(0.1))
+                        .foregroundColor(.red)
+                        .cornerRadius(8)
+                    }
                 }
                 .padding(.horizontal, 16)
             }
@@ -149,22 +191,57 @@ extension ProductsView {
         Group {
             if viewModel.isLoading {
                 LoadingView("Загружаем товары...")
+            } else if viewModel.isSyncing {
+                LoadingView("Синхронизация с Kaspi API...")
             } else if viewModel.filteredProducts.isEmpty {
-                EmptyStateView()
-            } else {
-                LazyVGrid(columns: [
-                    GridItem(.flexible(), spacing: 12),
-                    GridItem(.flexible(), spacing: 12)
-                ], spacing: 12) {
-                    ForEach(viewModel.filteredProducts) { product in
-                        ProductCard(product: product) {
-                            viewModel.addToWarehouseShipment(product: product)
-                        }
+                EmptyStateView(
+                    searchText: viewModel.searchText,
+                    hasFilters: viewModel.selectedStatus != nil || viewModel.selectedCategory != "Все"
+                ) {
+                    Task {
+                        await viewModel.syncWithKaspiAPI()
                     }
                 }
-                .padding(.horizontal, 16)
+            } else {
+                ScrollView {
+                    LazyVGrid(columns: [
+                        GridItem(.flexible(), spacing: 12),
+                        GridItem(.flexible(), spacing: 12)
+                    ], spacing: 12) {
+                        ForEach(viewModel.filteredProducts) { product in
+                            ProductCard(product: product) {
+                                viewModel.addToWarehouseShipment(product: product)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 20)
+                }
+            }
+            
+            // Информация о последней синхронизации
+            if let lastSync = viewModel.lastSyncDate {
+                syncInfoView(lastSync: lastSync)
             }
         }
+    }
+    
+    // 🔄 Информация о синхронизации
+    private func syncInfoView(lastSync: Date) -> some View {
+        HStack {
+            Image(systemName: "clock")
+                .foregroundColor(.secondary)
+                .font(.caption)
+            
+            Text("Последняя синхронизация: \(DateFormatter.shortDateTime.string(from: lastSync))")
+                .font(.caption)
+                .foregroundColor(.secondary)
+            
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(Color(UIColor.systemGray6))
     }
 }
 
@@ -304,21 +381,58 @@ struct ProductCard: View {
 
 /// Пустое состояние
 struct EmptyStateView: View {
+    let searchText: String
+    let hasFilters: Bool
+    let onSync: () -> Void
+    
     var body: some View {
         VStack(spacing: 16) {
-            Image(systemName: "cube.box")
+            Image(systemName: hasFilters || !searchText.isEmpty ? "magnifyingglass" : "cube.box")
                 .font(.system(size: 60))
                 .foregroundColor(.secondary)
             
-            Text("Товары не найдены")
-                .font(.title2)
-                .fontWeight(.bold)
-            
-            Text("Попробуйте изменить фильтры поиска или синхронизировать с Kaspi API")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 40)
+            VStack(spacing: 8) {
+                if !searchText.isEmpty {
+                    Text("Товары не найдены")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                    
+                    Text("По запросу \"\(searchText)\" ничего не найдено")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                } else if hasFilters {
+                    Text("Нет товаров")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                    
+                    Text("Попробуйте изменить фильтры поиска")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                } else {
+                    Text("Товары не найдены")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                    
+                    Text("Синхронизируйте товары с Kaspi API")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                    
+                    Button("Синхронизировать с Kaspi") {
+                        onSync()
+                    }
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 10)
+                    .background(Color.blue)
+                    .foregroundColor(.white)
+                    .cornerRadius(10)
+                }
+            }
+            .padding(.horizontal, 40)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -343,6 +457,17 @@ struct LoadingView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
+}
+
+// MARK: - Extensions
+
+extension DateFormatter {
+    static let shortDateTime: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .short
+        formatter.timeStyle = .short
+        return formatter
+    }()
 }
 
 #Preview {
