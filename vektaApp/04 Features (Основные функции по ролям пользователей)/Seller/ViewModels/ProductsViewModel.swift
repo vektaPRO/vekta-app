@@ -8,6 +8,7 @@
 import SwiftUI
 import FirebaseFirestore
 import FirebaseAuth
+import Combine
 
 // 🧠 ViewModel для управления товарами
 class ProductsViewModel: ObservableObject {
@@ -40,11 +41,13 @@ class ProductsViewModel: ObservableObject {
     @Published var isRefreshing: Bool = false
     @Published var isSyncing: Bool = false
     @Published var lastSyncDate: Date?
+    @Published var syncProgress: Double = 0.0
     
     // 🔥 Firebase и Services
     private let db = Firestore.firestore()
     private var listener: ListenerRegistration?
     private let kaspiService = KaspiAPIService()
+    private var cancellables = Set<AnyCancellable>()
     
     // 📚 Категории товаров
     var categories: [String] {
@@ -87,12 +90,13 @@ class ProductsViewModel: ObservableObject {
     }
     
     init() {
-        loadProducts()
         setupKaspiServiceObserver()
+        loadProducts()
     }
     
     deinit {
         listener?.remove()
+        cancellables.removeAll()
     }
     
     // MARK: - Основные методы
@@ -107,7 +111,7 @@ class ProductsViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
         
-        // Сначала пробуем загрузить из Firestore
+        // Загружаем из Firestore
         listener = db.collection("sellers").document(userId)
             .collection("products")
             .addSnapshotListener { [weak self] snapshot, error in
@@ -117,15 +121,11 @@ class ProductsViewModel: ObservableObject {
                     
                     if let error = error {
                         self?.errorMessage = "Ошибка загрузки: \(error.localizedDescription)"
-                        // Fallback к тестовым данным при ошибке
-                        self?.products = Product.sampleProducts
-                        self?.filterProducts()
                         return
                     }
                     
                     guard let documents = snapshot?.documents else {
-                        // Если нет товаров в Firestore, используем тестовые данные
-                        self?.products = Product.sampleProducts
+                        self?.products = []
                         self?.filterProducts()
                         return
                     }
@@ -135,13 +135,11 @@ class ProductsViewModel: ObservableObject {
                         Product.fromFirestore(doc.data(), id: doc.documentID)
                     }
                     
-                    // Если товаров нет, добавляем тестовые
-                    if self?.products.isEmpty == true {
-                        self?.products = Product.sampleProducts
-                    }
-                    
                     self?.filterProducts()
-                    print("✅ Загружено \(self?.products.count ?? 0) товаров")
+                    print("✅ Загружено \(self?.products.count ?? 0) товаров из базы данных")
+                    
+                    // Проверяем дату последней синхронизации
+                    self?.checkLastSyncDate()
                 }
             }
     }
@@ -151,6 +149,13 @@ class ProductsViewModel: ObservableObject {
         isRefreshing = true
         
         Task {
+            // Сначала загружаем токен если его нет
+            if kaspiService.apiToken == nil {
+                kaspiService.loadApiToken()
+                // Даем время на загрузку токена
+                try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 секунда
+            }
+            
             // Проверяем наличие токена Kaspi API
             let hasKaspiToken = await checkKaspiAPIAvailability()
             
@@ -211,15 +216,36 @@ class ProductsViewModel: ObservableObject {
     private func setupKaspiServiceObserver() {
         kaspiService.$isLoading
             .receive(on: DispatchQueue.main)
-            .assign(to: &$isSyncing)
+            .sink { [weak self] isLoading in
+                self?.isSyncing = isLoading
+            }
+            .store(in: &cancellables)
         
         kaspiService.$errorMessage
             .receive(on: DispatchQueue.main)
-            .assign(to: &$errorMessage)
+            .sink { [weak self] errorMessage in
+                if errorMessage != nil {
+                    self?.errorMessage = errorMessage
+                }
+            }
+            .store(in: &cancellables)
         
         kaspiService.$lastSyncDate
             .receive(on: DispatchQueue.main)
-            .assign(to: &$lastSyncDate)
+            .sink { [weak self] lastSyncDate in
+                self?.lastSyncDate = lastSyncDate
+                if lastSyncDate != nil {
+                    self?.saveLastSyncDate(lastSyncDate!)
+                }
+            }
+            .store(in: &cancellables)
+        
+        kaspiService.$syncProgress
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] progress in
+                self?.syncProgress = progress
+            }
+            .store(in: &cancellables)
     }
     
     // 🔄 Синхронизация с Kaspi API
@@ -227,6 +253,7 @@ class ProductsViewModel: ObservableObject {
         await MainActor.run {
             isSyncing = true
             errorMessage = nil
+            syncProgress = 0.0
         }
         
         do {
@@ -244,10 +271,12 @@ class ProductsViewModel: ObservableObject {
             let syncedProducts = try await kaspiService.syncAllProducts()
             
             await MainActor.run {
+                // Заменяем все товары на синхронизированные
                 self.products = syncedProducts
                 self.filterProducts()
                 self.isSyncing = false
                 self.lastSyncDate = Date()
+                self.syncProgress = 1.0
                 
                 // Показываем успешное сообщение
                 self.successMessage = "✅ Синхронизировано \(syncedProducts.count) товаров из Kaspi"
@@ -255,12 +284,14 @@ class ProductsViewModel: ObservableObject {
                 // Очищаем сообщение через 3 секунды
                 DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
                     self.successMessage = nil
+                    self.syncProgress = 0.0
                 }
             }
             
         } catch {
             await MainActor.run {
                 self.isSyncing = false
+                self.syncProgress = 0.0
                 if let kaspiError = error as? KaspiAPIError {
                     self.errorMessage = kaspiError.errorDescription
                 } else {
@@ -278,6 +309,31 @@ class ProductsViewModel: ObservableObject {
     // 📊 Проверить статус API
     func checkKaspiAPIStatus() async -> Bool {
         return await kaspiService.checkAPIHealth()
+    }
+    
+    // 📅 Проверить дату последней синхронизации
+    private func checkLastSyncDate() {
+        guard let userId = Auth.auth().currentUser?.uid else { return }
+        
+        db.collection("sellers").document(userId)
+            .getDocument { [weak self] snapshot, error in
+                if let data = snapshot?.data(),
+                   let timestamp = data["lastKaspiSync"] as? Timestamp {
+                    DispatchQueue.main.async {
+                        self?.lastSyncDate = timestamp.dateValue()
+                    }
+                }
+            }
+    }
+    
+    // 💾 Сохранить дату последней синхронизации
+    private func saveLastSyncDate(_ date: Date) {
+        guard let userId = Auth.auth().currentUser?.uid else { return }
+        
+        db.collection("sellers").document(userId)
+            .setData([
+                "lastKaspiSync": Timestamp(date: date)
+            ], merge: true)
     }
     
     // MARK: - Управление товарами
@@ -492,5 +548,49 @@ class ProductsViewModel: ObservableObject {
     func clearMessages() {
         errorMessage = nil
         successMessage = nil
+    }
+    
+    // 📊 Товары по складам
+    func getProductsByWarehouse(_ warehouseId: String) -> [Product] {
+        return products.filter { product in
+            product.warehouseStock[warehouseId] != nil &&
+            product.warehouseStock[warehouseId]! > 0
+        }
+    }
+    
+    // 🏭 Статистика по складам
+    var warehouseStatistics: [String: (products: Int, totalStock: Int, value: Double)] {
+        var stats: [String: (products: Int, totalStock: Int, value: Double)] = [:]
+        
+        for product in products {
+            for (warehouseId, stock) in product.warehouseStock {
+                let currentStats = stats[warehouseId] ?? (products: 0, totalStock: 0, value: 0.0)
+                stats[warehouseId] = (
+                    products: currentStats.products + 1,
+                    totalStock: currentStats.totalStock + stock,
+                    value: currentStats.value + (product.price * Double(stock))
+                )
+            }
+        }
+        
+        return stats
+    }
+    
+    // 📅 Нужна ли синхронизация
+    var needsSync: Bool {
+        guard let lastSync = lastSyncDate else { return true }
+        // Синхронизация нужна если прошло больше 4 часов
+        return Date().timeIntervalSince(lastSync) > 14400 // 4 часа
+    }
+    
+    // 🔄 Автоматическая синхронизация
+    func startAutoSync() {
+        Timer.scheduledTimer(withTimeInterval: 14400, repeats: true) { _ in
+            Task {
+                if await self.checkKaspiAPIAvailability() {
+                    await self.syncWithKaspiAPI()
+                }
+            }
+        }
     }
 }
