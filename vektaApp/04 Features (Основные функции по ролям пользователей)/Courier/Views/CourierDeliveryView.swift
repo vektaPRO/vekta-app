@@ -227,11 +227,23 @@ struct StatusBadge: View {
                 .font(.caption)
                 .fontWeight(.medium)
         }
-        .foregroundColor(Color(status.color))
+        .foregroundColor(colorForStatus(status))
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
-        .background(Color(status.color).opacity(0.1))
+        .background(colorForStatus(status).opacity(0.1))
         .cornerRadius(8)
+    }
+    
+    private func colorForStatus(_ status: DeliveryStatus) -> Color {
+        switch status {
+        case .pending: return .gray
+        case .inTransit: return .blue
+        case .arrived: return .orange
+        case .awaitingCode: return .yellow
+        case .confirmed: return .green
+        case .failed: return .red
+        case .cancelled: return .red
+        }
     }
 }
 
@@ -438,7 +450,6 @@ struct DeliveryDetailView: View {
                     color: .red,
                     isLoading: false
                 ) {
-                    // TODO: Показать диалог с причиной
                     Task {
                         await viewModel.markDeliveryFailed(delivery, reason: "Клиент отказался")
                     }

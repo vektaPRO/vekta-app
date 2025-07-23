@@ -202,17 +202,17 @@ struct QRCodeView: View {
                             .font(.headline)
                         
                         VStack(alignment: .leading, spacing: 8) {
-                            InstructionStep(
+                            OrderInstructionStep(
                                 number: "1",
                                 text: "Покажите этот QR-код курьеру при передаче товаров"
                             )
                             
-                            InstructionStep(
+                            OrderInstructionStep(
                                 number: "2",
                                 text: "Курьер отсканирует код для подтверждения получения"
                             )
                             
-                            InstructionStep(
+                            OrderInstructionStep(
                                 number: "3",
                                 text: "Статус заказа автоматически обновится в системе"
                             )
@@ -239,6 +239,31 @@ struct QRCodeView: View {
     }
 }
 
+// MARK: - Order Instruction Step (переименовано для избежания конфликта)
+struct OrderInstructionStep: View {
+    let number: String
+    let text: String
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // Номер шага
+            Text(number)
+                .font(.caption)
+                .fontWeight(.bold)
+                .foregroundColor(.white)
+                .frame(width: 24, height: 24)
+                .background(Color.blue)
+                .clipShape(Circle())
+            
+            // Текст шага
+            Text(text)
+                .font(.subheadline)
+                .foregroundColor(.primary)
+            
+            Spacer()
+        }
+    }
+}
 
 // MARK: - Расширения DateFormatter
 extension DateFormatter {

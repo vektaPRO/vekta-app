@@ -170,28 +170,25 @@ extension CourierDashboard {
                 .font(.headline)
             
             HStack(spacing: 12) {
-                StatCard(
+                CourierStatCard(
                     icon: "checkmark.circle.fill",
                     title: "Доставлено",
                     value: "\(deliveryViewModel.todayDeliveries)",
-                    color: .green,
-                    compact: true
+                    color: .green
                 )
                 
-                StatCard(
+                CourierStatCard(
                     icon: "clock.fill",
                     title: "В процессе",
                     value: "\(deliveryViewModel.pendingDeliveries)",
-                    color: .orange,
-                    compact: true
+                    color: .orange
                 )
                 
-                StatCard(
+                CourierStatCard(
                     icon: "tenge.circle.fill",
                     title: "Заработано",
                     value: "15,000",
-                    color: .blue,
-                    compact: true
+                    color: .blue
                 )
             }
         }
@@ -280,6 +277,31 @@ extension CourierDashboard {
 }
 
 // MARK: - Card Components
+
+// Компонент StatCard для курьера (переименован для избежания конфликта)
+struct CourierStatCard: View {
+    let icon: String
+    let title: String
+    let value: String
+    let color: Color
+    
+    var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.title2)
+                .foregroundColor(color)
+            
+            Text(value)
+                .font(.title2)
+                .fontWeight(.bold)
+            
+            Text(title)
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
 
 struct CurrentDeliveryCard: View {
     let delivery: DeliveryConfirmation
@@ -410,7 +432,7 @@ struct CompletedDeliveryCard: View {
             }
         }
         .padding(12)
-        .background(Color(UIColor.systemGray6))
+        .background(Color(UIColor.systemBackground))
         .cornerRadius(8)
     }
 }
@@ -474,16 +496,6 @@ struct MapPreview: View {
 struct MapPin: Identifiable {
     let id = UUID()
     let coordinate: CLLocationCoordinate2D
-}
-
-// Расширение для компактных stat карточек
-extension StatCard {
-    init(icon: String, title: String, value: String, color: Color, compact: Bool) {
-        self.icon = icon
-        self.title = title
-        self.value = value
-        self.color = color
-    }
 }
 
 #Preview {
