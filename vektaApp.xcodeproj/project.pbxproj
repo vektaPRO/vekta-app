@@ -9,6 +9,12 @@
 /* Begin PBXBuildFile section */
 		4E454DE72E0E3DE900591B30 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 4E454DE62E0E3DE900591B30 /* FirebaseAuth */; };
 		4E454DE92E0E3DE900591B30 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 4E454DE82E0E3DE900591B30 /* FirebaseFirestore */; };
+		4E4C1D3A2E31D49F00CAEC71 /* CommonUIComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E4C1D392E31D49F00CAEC71 /* CommonUIComponents.swift */; };
+		4E4C1D3C2E3226BC00CAEC71 /* NetworkManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E4C1D3B2E3226BC00CAEC71 /* NetworkManager.swift */; };
+		4E4C1D3E2E32270600CAEC71 /* APIConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E4C1D3D2E32270600CAEC71 /* APIConfiguration.swift */; };
+		4E4C1D402E32273800CAEC71 /* RetryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E4C1D3F2E32273800CAEC71 /* RetryManager.swift */; };
+		4E4C1D422E32277800CAEC71 /* KaspiTestService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E4C1D412E32277800CAEC71 /* KaspiTestService.swift */; };
+		4E4C1D442E322C9000CAEC71 /* Seller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E4C1D432E322C9000CAEC71 /* Seller.swift */; };
 		4EE757242E1310DB00BD34CE /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 4EE757232E1310DB00BD34CE /* FirebaseCore */; };
 /* End PBXBuildFile section */
 
@@ -33,6 +39,12 @@
 		4E454DAF2E0E3B8000591B30 /* vektaApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = vektaApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		4E454DBC2E0E3B8100591B30 /* vektaAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = vektaAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		4E454DC62E0E3B8100591B30 /* vektaAppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = vektaAppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		4E4C1D392E31D49F00CAEC71 /* CommonUIComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommonUIComponents.swift; sourceTree = "<group>"; };
+		4E4C1D3B2E3226BC00CAEC71 /* NetworkManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkManager.swift; sourceTree = "<group>"; };
+		4E4C1D3D2E32270600CAEC71 /* APIConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIConfiguration.swift; sourceTree = "<group>"; };
+		4E4C1D3F2E32273800CAEC71 /* RetryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetryManager.swift; sourceTree = "<group>"; };
+		4E4C1D412E32277800CAEC71 /* KaspiTestService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KaspiTestService.swift; sourceTree = "<group>"; };
+		4E4C1D432E322C9000CAEC71 /* Seller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Seller.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -84,10 +96,16 @@
 		4E454DA62E0E3B8000591B30 = {
 			isa = PBXGroup;
 			children = (
+				4E4C1D432E322C9000CAEC71 /* Seller.swift */,
+				4E4C1D412E32277800CAEC71 /* KaspiTestService.swift */,
+				4E4C1D3F2E32273800CAEC71 /* RetryManager.swift */,
+				4E4C1D3D2E32270600CAEC71 /* APIConfiguration.swift */,
 				4E454DB12E0E3B8000591B30 /* vektaApp */,
 				4E454DBF2E0E3B8100591B30 /* vektaAppTests */,
 				4E454DC92E0E3B8100591B30 /* vektaAppUITests */,
 				4E454DB02E0E3B8000591B30 /* Products */,
+				4E4C1D392E31D49F00CAEC71 /* CommonUIComponents.swift */,
+				4E4C1D3B2E3226BC00CAEC71 /* NetworkManager.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -251,6 +269,12 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				4E4C1D3C2E3226BC00CAEC71 /* NetworkManager.swift in Sources */,
+				4E4C1D402E32273800CAEC71 /* RetryManager.swift in Sources */,
+				4E4C1D442E322C9000CAEC71 /* Seller.swift in Sources */,
+				4E4C1D3E2E32270600CAEC71 /* APIConfiguration.swift in Sources */,
+				4E4C1D422E32277800CAEC71 /* KaspiTestService.swift in Sources */,
+				4E4C1D3A2E31D49F00CAEC71 /* CommonUIComponents.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

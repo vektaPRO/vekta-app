@@ -12,6 +12,7 @@ struct KaspiAPITokenView: View {
     // 🧠 Подключаем ViewModel (мозг экрана)
     @StateObject private var viewModel = KaspiTokenViewModel()
     @Environment(\.dismiss) private var dismiss
+    @State private var showingTestView = false
     
     var body: some View {
         NavigationView {
@@ -26,6 +27,11 @@ struct KaspiAPITokenView: View {
                     
                     // ✅ Кнопка сохранения
                     saveButtonSection
+                    
+                    // 🧪 Кнопка тестирования API
+                    if viewModel.isTokenSaved {
+                        testAPISection
+                    }
                     
                     // 📖 Инструкция
                     instructionsSection
@@ -50,6 +56,9 @@ struct KaspiAPITokenView: View {
                 }
             } message: {
                 Text(viewModel.errorMessage ?? "")
+            }
+            .sheet(isPresented: $showingTestView) {
+                KaspiAPITestView()
             }
         }
     }
@@ -144,6 +153,24 @@ extension KaspiAPITokenView {
             .cornerRadius(12)
         }
         .disabled(viewModel.isLoading || !viewModel.isValidToken())
+    }
+    
+    // 🧪 Кнопка тестирования API
+    private var testAPISection: some View {
+        Button(action: {
+            showingTestView = true
+        }) {
+            HStack {
+                Image(systemName: "testtube.2")
+                Text("Тестировать API")
+                    .fontWeight(.semibold)
+            }
+            .frame(maxWidth: .infinity)
+            .padding()
+            .background(Color.orange)
+            .foregroundColor(.white)
+            .cornerRadius(12)
+        }
     }
     
     // 📖 Инструкция

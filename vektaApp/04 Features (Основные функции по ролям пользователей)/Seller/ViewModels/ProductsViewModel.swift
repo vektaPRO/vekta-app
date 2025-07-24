@@ -11,6 +11,7 @@ import FirebaseAuth
 import Combine
 
 // 🧠 ViewModel для управления товарами
+@MainActor
 class ProductsViewModel: ObservableObject {
     
     // 📊 Данные товаров
@@ -115,31 +116,32 @@ class ProductsViewModel: ObservableObject {
         listener = db.collection("sellers").document(userId)
             .collection("products")
             .addSnapshotListener { [weak self] snapshot, error in
+                guard let self = self else { return }
                 
-                DispatchQueue.main.async {
-                    self?.isLoading = false
+                Task { @MainActor in
+                    self.isLoading = false
                     
                     if let error = error {
-                        self?.errorMessage = "Ошибка загрузки: \(error.localizedDescription)"
+                        self.errorMessage = "Ошибка загрузки: \(error.localizedDescription)"
                         return
                     }
                     
                     guard let documents = snapshot?.documents else {
-                        self?.products = []
-                        self?.filterProducts()
+                        self.products = []
+                        self.filterProducts()
                         return
                     }
                     
                     // Парсим товары из Firestore
-                    self?.products = documents.compactMap { doc in
+                    self.products = documents.compactMap { doc in
                         Product.fromFirestore(doc.data(), id: doc.documentID)
                     }
                     
-                    self?.filterProducts()
-                    print("✅ Загружено \(self?.products.count ?? 0) товаров из базы данных")
+                    self.filterProducts()
+                    print("✅ Загружено \(self.products.count) товаров из базы данных")
                     
                     // Проверяем дату последней синхронизации
-                    self?.checkLastSyncDate()
+                    self.checkLastSyncDate()
                 }
             }
     }
@@ -149,13 +151,6 @@ class ProductsViewModel: ObservableObject {
         isRefreshing = true
         
         Task {
-            // Сначала загружаем токен если его нет
-            if kaspiService.apiToken == nil {
-                kaspiService.loadApiToken()
-                // Даем время на загрузку токена
-                try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 секунда
-            }
-            
             // Проверяем наличие токена Kaspi API
             let hasKaspiToken = await checkKaspiAPIAvailability()
             
@@ -167,17 +162,13 @@ class ProductsViewModel: ObservableObject {
                 await refreshFromFirestore()
             }
             
-            await MainActor.run {
-                self.isRefreshing = false
-            }
+            self.isRefreshing = false
         }
     }
     
     // 📱 Обновление из Firestore
     private func refreshFromFirestore() async {
-        await MainActor.run {
-            loadProducts()
-        }
+        loadProducts()
         
         // Имитируем задержку
         try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 секунда
@@ -235,7 +226,9 @@ class ProductsViewModel: ObservableObject {
             .sink { [weak self] lastSyncDate in
                 self?.lastSyncDate = lastSyncDate
                 if lastSyncDate != nil {
-                    self?.saveLastSyncDate(lastSyncDate!)
+                    Task {
+                        await self?.saveLastSyncDate(lastSyncDate!)
+                    }
                 }
             }
             .store(in: &cancellables)
@@ -250,53 +243,45 @@ class ProductsViewModel: ObservableObject {
     
     // 🔄 Синхронизация с Kaspi API
     func syncWithKaspiAPI() async {
-        await MainActor.run {
-            isSyncing = true
-            errorMessage = nil
-            syncProgress = 0.0
-        }
+        isSyncing = true
+        errorMessage = nil
+        syncProgress = 0.0
         
         do {
             // Проверяем токен
             let isValid = try await kaspiService.validateToken()
             guard isValid else {
-                await MainActor.run {
-                    self.errorMessage = "Неверный API токен. Проверьте настройки Kaspi API"
-                    self.isSyncing = false
-                }
+                self.errorMessage = "Неверный API токен. Проверьте настройки Kaspi API"
+                self.isSyncing = false
                 return
             }
             
             // Синхронизируем товары
             let syncedProducts = try await kaspiService.syncAllProducts()
             
-            await MainActor.run {
-                // Заменяем все товары на синхронизированные
-                self.products = syncedProducts
-                self.filterProducts()
-                self.isSyncing = false
-                self.lastSyncDate = Date()
-                self.syncProgress = 1.0
-                
-                // Показываем успешное сообщение
-                self.successMessage = "✅ Синхронизировано \(syncedProducts.count) товаров из Kaspi"
-                
-                // Очищаем сообщение через 3 секунды
-                DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                    self.successMessage = nil
-                    self.syncProgress = 0.0
-                }
+            // Заменяем все товары на синхронизированные
+            self.products = syncedProducts
+            self.filterProducts()
+            self.isSyncing = false
+            self.lastSyncDate = Date()
+            self.syncProgress = 1.0
+            
+            // Показываем успешное сообщение
+            self.successMessage = "✅ Синхронизировано \(syncedProducts.count) товаров из Kaspi"
+            
+            // Очищаем сообщение через 3 секунды
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                self.successMessage = nil
+                self.syncProgress = 0.0
             }
             
         } catch {
-            await MainActor.run {
-                self.isSyncing = false
-                self.syncProgress = 0.0
-                if let kaspiError = error as? KaspiAPIError {
-                    self.errorMessage = kaspiError.errorDescription
-                } else {
-                    self.errorMessage = "Ошибка синхронизации: \(error.localizedDescription)"
-                }
+            self.isSyncing = false
+            self.syncProgress = 0.0
+            if let kaspiError = error as? KaspiAPIError {
+                self.errorMessage = kaspiError.errorDescription
+            } else {
+                self.errorMessage = "Ошибка синхронизации: \(error.localizedDescription)"
             }
         }
     }
@@ -319,7 +304,7 @@ class ProductsViewModel: ObservableObject {
             .getDocument { [weak self] snapshot, error in
                 if let data = snapshot?.data(),
                    let timestamp = data["lastKaspiSync"] as? Timestamp {
-                    DispatchQueue.main.async {
+                    Task { @MainActor in
                         self?.lastSyncDate = timestamp.dateValue()
                     }
                 }
@@ -327,13 +312,17 @@ class ProductsViewModel: ObservableObject {
     }
     
     // 💾 Сохранить дату последней синхронизации
-    private func saveLastSyncDate(_ date: Date) {
+    private func saveLastSyncDate(_ date: Date) async {
         guard let userId = Auth.auth().currentUser?.uid else { return }
         
-        db.collection("sellers").document(userId)
-            .setData([
-                "lastKaspiSync": Timestamp(date: date)
-            ], merge: true)
+        do {
+            try await db.collection("sellers").document(userId)
+                .setData([
+                    "lastKaspiSync": Timestamp(date: date)
+                ], merge: true)
+        } catch {
+            print("❌ Ошибка сохранения даты синхронизации: \(error)")
+        }
     }
     
     // MARK: - Управление товарами
@@ -369,46 +358,40 @@ class ProductsViewModel: ObservableObject {
                 
                 // Обновляем локальные данные
                 if let index = products.firstIndex(where: { $0.id == productId }) {
-                    await MainActor.run {
-                        var updatedProduct = self.products[index]
-                        var updatedStock = updatedProduct.warehouseStock
-                        updatedStock[warehouseId] = newQuantity
-                        
-                        // Создаем новый товар с обновленными остатками
-                        let newProduct = Product(
-                            id: updatedProduct.id,
-                            kaspiProductId: updatedProduct.kaspiProductId,
-                            name: updatedProduct.name,
-                            description: updatedProduct.description,
-                            price: updatedProduct.price,
-                            category: updatedProduct.category,
-                            imageURL: updatedProduct.imageURL,
-                            status: newQuantity > 0 ? .inStock : .outOfStock,
-                            warehouseStock: updatedStock,
-                            createdAt: updatedProduct.createdAt,
-                            updatedAt: Date(),
-                            isActive: updatedProduct.isActive
-                        )
-                        
-                        self.products[index] = newProduct
-                        self.filterProducts()
-                        
-                        // Сохраняем в Firestore
-                        self.saveProductToFirestore(newProduct)
-                    }
+                    var updatedProduct = self.products[index]
+                    var updatedStock = updatedProduct.warehouseStock
+                    updatedStock[warehouseId] = newQuantity
+                    
+                    // Создаем новый товар с обновленными остатками
+                    let newProduct = Product(
+                        id: updatedProduct.id,
+                        kaspiProductId: updatedProduct.kaspiProductId,
+                        name: updatedProduct.name,
+                        description: updatedProduct.description,
+                        price: updatedProduct.price,
+                        category: updatedProduct.category,
+                        imageURL: updatedProduct.imageURL,
+                        status: newQuantity > 0 ? .inStock : .outOfStock,
+                        warehouseStock: updatedStock,
+                        createdAt: updatedProduct.createdAt,
+                        updatedAt: Date(),
+                        isActive: updatedProduct.isActive
+                    )
+                    
+                    self.products[index] = newProduct
+                    self.filterProducts()
+                    
+                    // Сохраняем в Firestore
+                    await self.saveProductToFirestore(newProduct)
                 }
                 
-                await MainActor.run {
-                    self.successMessage = "✅ Остатки обновлены"
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                        self.successMessage = nil
-                    }
+                self.successMessage = "✅ Остатки обновлены"
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                    self.successMessage = nil
                 }
                 
             } catch {
-                await MainActor.run {
-                    self.errorMessage = "Ошибка обновления остатков: \(error.localizedDescription)"
-                }
+                self.errorMessage = "Ошибка обновления остатков: \(error.localizedDescription)"
             }
         }
     }
@@ -416,33 +399,31 @@ class ProductsViewModel: ObservableObject {
     // 🗑️ Деактивировать товар
     func deactivateProduct(product: Product) {
         Task {
-            await MainActor.run {
-                if let index = self.products.firstIndex(where: { $0.id == product.id }) {
-                    let deactivatedProduct = Product(
-                        id: product.id,
-                        kaspiProductId: product.kaspiProductId,
-                        name: product.name,
-                        description: product.description,
-                        price: product.price,
-                        category: product.category,
-                        imageURL: product.imageURL,
-                        status: .inactive,
-                        warehouseStock: product.warehouseStock,
-                        createdAt: product.createdAt,
-                        updatedAt: Date(),
-                        isActive: false
-                    )
-                    
-                    self.products[index] = deactivatedProduct
-                    self.filterProducts()
-                    
-                    // Сохраняем в Firestore
-                    self.saveProductToFirestore(deactivatedProduct)
-                    
-                    self.successMessage = "Товар '\(product.name)' деактивирован"
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                        self.successMessage = nil
-                    }
+            if let index = self.products.firstIndex(where: { $0.id == product.id }) {
+                let deactivatedProduct = Product(
+                    id: product.id,
+                    kaspiProductId: product.kaspiProductId,
+                    name: product.name,
+                    description: product.description,
+                    price: product.price,
+                    category: product.category,
+                    imageURL: product.imageURL,
+                    status: .inactive,
+                    warehouseStock: product.warehouseStock,
+                    createdAt: product.createdAt,
+                    updatedAt: Date(),
+                    isActive: false
+                )
+                
+                self.products[index] = deactivatedProduct
+                self.filterProducts()
+                
+                // Сохраняем в Firestore
+                await self.saveProductToFirestore(deactivatedProduct)
+                
+                self.successMessage = "Товар '\(product.name)' деактивирован"
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                    self.successMessage = nil
                 }
             }
         }
@@ -451,18 +432,17 @@ class ProductsViewModel: ObservableObject {
     }
     
     // 💾 Сохранить товар в Firestore
-    private func saveProductToFirestore(_ product: Product) {
+    private func saveProductToFirestore(_ product: Product) async {
         guard let userId = Auth.auth().currentUser?.uid else { return }
         
         let productRef = db.collection("sellers").document(userId)
             .collection("products").document(product.id)
         
-        productRef.setData(product.toDictionary()) { error in
-            if let error = error {
-                print("❌ Ошибка сохранения товара: \(error)")
-            } else {
-                print("✅ Товар сохранен в Firestore")
-            }
+        do {
+            try await productRef.setData(product.toDictionary())
+            print("✅ Товар сохранен в Firestore")
+        } catch {
+            print("❌ Ошибка сохранения товара: \(error)")
         }
     }
     

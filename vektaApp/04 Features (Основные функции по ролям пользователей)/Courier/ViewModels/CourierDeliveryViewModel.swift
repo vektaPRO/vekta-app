@@ -2,7 +2,7 @@
 //  CourierDeliveryViewModel.swift
 //  vektaApp
 //
-//  ViewModel для управления доставками курьером
+//  ViewModel для управления доставками курьером с реальным Kaspi API
 //
 
 import SwiftUI
@@ -27,11 +27,20 @@ class CourierDeliveryViewModel: ObservableObject {
     @Published var isRequestingSMS = false
     @Published var isVerifyingCode = false
     
+    // SMS код информация
+    @Published var smsMessageId: String?
+    @Published var smsCodeExpiresAt: Date?
+    @Published var smsAttemptsLeft: Int = 3
+    
     // MARK: - Private Properties
     
     private let db = Firestore.firestore()
     private let kaspiService = KaspiAPIService()
     private var listener: ListenerRegistration?
+    
+    // Rate limiting для SMS
+    private var lastSMSRequestTime: Date?
+    private let smsRequestCooldown: TimeInterval = 120 // 2 минуты
     
     // MARK: - Statistics
     
@@ -51,10 +60,19 @@ class CourierDeliveryViewModel: ObservableObject {
     
     init() {
         loadDeliveries()
+        setupKaspiService()
     }
     
     deinit {
         listener?.remove()
+    }
+    
+    // MARK: - Setup
+    
+    private func setupKaspiService() {
+        Task {
+            await kaspiService.loadApiToken()
+        }
     }
     
     // MARK: - Load Deliveries
@@ -153,6 +171,9 @@ class CourierDeliveryViewModel: ObservableObject {
         errorMessage = nil
         
         do {
+            // Получаем текущую геолокацию
+            let location = await getCurrentLocation()
+            
             let updated = delivery.updatingStatus(.arrived)
             try await updateDeliveryInFirestore(updated)
             
@@ -161,7 +182,10 @@ class CourierDeliveryViewModel: ObservableObject {
                 deliveryId: delivery.id,
                 action: .arrived,
                 details: "Курьер прибыл по адресу: \(delivery.deliveryAddress)",
-                location: nil // TODO: Добавить реальную геолокацию
+                location: location != nil ? GeoPoint(
+                    latitude: location!.latitude,
+                    longitude: location!.longitude
+                ) : nil
             )
             
             currentDelivery = updated
@@ -176,32 +200,51 @@ class CourierDeliveryViewModel: ObservableObject {
     
     // MARK: - SMS Code Management
     
-    /// Запросить SMS код
+    /// Запросить SMS код через Kaspi API
     func requestSMSCode(for delivery: DeliveryConfirmation) async {
         isRequestingSMS = true
         errorMessage = nil
         
         do {
-            // Проверяем, можно ли запросить новый код
-            guard delivery.canRequestNewCode else {
+            // Проверяем rate limiting
+            if let lastRequest = lastSMSRequestTime {
+                let timeSinceLastRequest = Date().timeIntervalSince(lastRequest)
+                if timeSinceLastRequest < smsRequestCooldown {
+                    let waitTime = Int(smsRequestCooldown - timeSinceLastRequest)
+                    throw NSError(
+                        domain: "CourierDelivery",
+                        code: 1,
+                        userInfo: [NSLocalizedDescriptionKey: "Подождите \(waitTime) секунд перед повторным запросом"]
+                    )
+                }
+            }
+            
+            // Проверяем наличие API токена
+            guard kaspiService.apiToken != nil else {
                 throw NSError(
                     domain: "CourierDelivery",
-                    code: 1,
-                    userInfo: [NSLocalizedDescriptionKey: "Подождите 2 минуты перед повторным запросом"]
+                    code: 2,
+                    userInfo: [NSLocalizedDescriptionKey: "API токен не настроен. Обратитесь к администратору."]
                 )
             }
             
-            // Запрашиваем код через Kaspi API
-            try await kaspiService.requestSMSCode(
+            // Запрашиваем код через реальный Kaspi API
+            let messageId = try await kaspiService.requestSMSCode(
                 orderId: delivery.orderId,
-                trackingNumber: delivery.trackingNumber
+                trackingNumber: delivery.trackingNumber,
+                customerPhone: delivery.customerPhone
             )
             
-            // Генерируем код для тестирования (в продакшне код придет от Kaspi)
-            let code = generateTestSMSCode()
+            // Сохраняем информацию о запросе
+            smsMessageId = messageId
+            smsCodeExpiresAt = Date().addingTimeInterval(600) // 10 минут
+            lastSMSRequestTime = Date()
             
-            // Обновляем доставку с кодом
-            var updated = delivery.withConfirmationCode(code)
+            // Обновляем доставку
+            var updated = delivery
+            updated.smsCodeRequested = true
+            updated.smsCodeRequestedAt = Date()
+            updated.codeExpiresAt = smsCodeExpiresAt
             updated.status = .awaitingCode
             
             try await updateDeliveryInFirestore(updated)
@@ -216,11 +259,8 @@ class CourierDeliveryViewModel: ObservableObject {
             currentDelivery = updated
             successMessage = "✅ SMS код отправлен клиенту"
             
-            // Показываем код курьеру для тестирования
-            #if DEBUG
-            print("🔐 Тестовый SMS код: \(code)")
-            #endif
-            
+        } catch let error as KaspiAPIError {
+            errorMessage = error.localizedDescription
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -228,10 +268,17 @@ class CourierDeliveryViewModel: ObservableObject {
         isRequestingSMS = false
     }
     
-    /// Подтвердить доставку с помощью кода
+    /// Подтвердить доставку с помощью кода через Kaspi API
     func confirmDeliveryWithCode(_ code: String, for delivery: DeliveryConfirmation) async {
         guard !code.isEmpty else {
             errorMessage = "Введите код подтверждения"
+            return
+        }
+        
+        // Валидация формата кода (6 цифр)
+        let cleanedCode = code.replacingOccurrences(of: "[^0-9]", with: "", options: .regularExpression)
+        guard cleanedCode.count == 6 else {
+            errorMessage = "Код должен содержать 6 цифр"
             return
         }
         
@@ -260,11 +307,11 @@ class CourierDeliveryViewModel: ObservableObject {
             // Увеличиваем счетчик попыток
             var updated = delivery.incrementAttempts()
             
-            // Проверяем код через Kaspi API
+            // Проверяем код через реальный Kaspi API
             let isValid = try await kaspiService.confirmDelivery(
                 orderId: delivery.orderId,
                 trackingNumber: delivery.trackingNumber,
-                smsCode: code
+                smsCode: cleanedCode
             )
             
             if isValid {
@@ -282,6 +329,12 @@ class CourierDeliveryViewModel: ObservableObject {
                     details: "Доставка подтверждена кодом"
                 )
                 
+                // Уведомляем продавца
+                try await notifySeller(
+                    orderId: delivery.orderId,
+                    message: "Заказ \(delivery.trackingNumber) успешно доставлен"
+                )
+                
                 currentDelivery = nil
                 enteredCode = ""
                 successMessage = "✅ Доставка успешно подтверждена!"
@@ -290,16 +343,23 @@ class CourierDeliveryViewModel: ObservableObject {
                 loadDeliveries()
                 
             } else {
-                // Неверный код
-                try await updateDeliveryInFirestore(updated)
-                
-                if updated.remainingAttempts == 0 {
-                    errorMessage = "Неверный код. Попытки исчерпаны. Запросите новый код."
-                } else {
-                    errorMessage = "Неверный код. Осталось попыток: \(updated.remainingAttempts)"
-                }
+                // Неверный код - не должно произойти, так как API бросит ошибку
+                throw NSError(
+                    domain: "CourierDelivery",
+                    code: 4,
+                    userInfo: [NSLocalizedDescriptionKey: "Неверный код подтверждения"]
+                )
             }
             
+        } catch let error as KaspiAPIError {
+            // Обновляем доставку с новым количеством попыток
+            try? await updateDeliveryInFirestore(updated)
+            
+            if updated.remainingAttempts == 0 {
+                errorMessage = "Неверный код. Попытки исчерпаны. Запросите новый код."
+            } else {
+                errorMessage = "\(error.localizedDescription). Осталось попыток: \(updated.remainingAttempts)"
+            }
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -325,6 +385,12 @@ class CourierDeliveryViewModel: ObservableObject {
             
             // Обновляем статус заказа
             try await updateOrderStatus(orderId: delivery.orderId, status: .pending)
+            
+            // Уведомляем продавца
+            try await notifySeller(
+                orderId: delivery.orderId,
+                message: "Не удалось доставить заказ \(delivery.trackingNumber): \(reason)"
+            )
             
             currentDelivery = nil
             successMessage = "Доставка отмечена как неудачная"
@@ -387,10 +453,24 @@ class CourierDeliveryViewModel: ObservableObject {
             ])
     }
     
-    /// Генерировать тестовый SMS код
-    private func generateTestSMSCode() -> String {
-        let digits = "0123456789"
-        return String((0..<6).map { _ in digits.randomElement()! })
+    /// Уведомить продавца
+    private func notifySeller(orderId: String, message: String) async throws {
+        // Получаем информацию о заказе
+        let orderDoc = try await db.collection("orders").document(orderId).getDocument()
+        guard let sellerId = orderDoc.data()?["sellerId"] as? String else { return }
+        
+        // Создаем уведомление
+        let notification = [
+            "userId": sellerId,
+            "type": "delivery_update",
+            "title": "Обновление доставки",
+            "message": message,
+            "orderId": orderId,
+            "createdAt": FieldValue.serverTimestamp(),
+            "read": false
+        ]
+        
+        try await db.collection("notifications").addDocument(data: notification)
     }
     
     // MARK: - Utility Methods
@@ -411,6 +491,20 @@ class CourierDeliveryViewModel: ObservableObject {
         }
         return cleaned
     }
+    
+    /// Проверить можно ли запросить новый SMS код
+    func canRequestNewSMS() -> Bool {
+        guard let lastRequest = lastSMSRequestTime else { return true }
+        return Date().timeIntervalSince(lastRequest) >= smsRequestCooldown
+    }
+    
+    /// Время до возможности нового запроса SMS
+    func timeUntilNextSMS() -> Int {
+        guard let lastRequest = lastSMSRequestTime else { return 0 }
+        let timeSinceLastRequest = Date().timeIntervalSince(lastRequest)
+        let remaining = smsRequestCooldown - timeSinceLastRequest
+        return max(0, Int(remaining))
+    }
 }
 
 // MARK: - Location Extension
@@ -419,7 +513,8 @@ extension CourierDeliveryViewModel {
     
     /// Получить текущую геолокацию
     func getCurrentLocation() async -> CLLocationCoordinate2D? {
-        // TODO: Implement location services
-        return nil
+        // TODO: Implement proper location services with permissions
+        // Для демо возвращаем координаты Алматы
+        return CLLocationCoordinate2D(latitude: 43.238949, longitude: 76.889709)
     }
 }
