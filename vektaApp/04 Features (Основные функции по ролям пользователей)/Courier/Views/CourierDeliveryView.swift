@@ -97,8 +97,7 @@ extension CourierDeliveryView {
     private var deliveryListView: some View {
         Group {
             if viewModel.isLoading {
-                ProgressView("Загрузка доставок...")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                LoadingView("Загрузка доставок...")
             } else if viewModel.activeDeliveries.isEmpty {
                 EmptyDeliveriesView()
             } else {
@@ -116,32 +115,6 @@ extension CourierDeliveryView {
                 }
             }
         }
-    }
-}
-
-// MARK: - Stat Card
-
-struct StatCard: View {
-    let icon: String
-    let title: String
-    let value: String
-    let color: Color
-    
-    var body: some View {
-        VStack(spacing: 8) {
-            Image(systemName: icon)
-                .font(.title2)
-                .foregroundColor(color)
-            
-            Text(value)
-                .font(.title2)
-                .fontWeight(.bold)
-            
-            Text(title)
-                .font(.caption)
-                .foregroundColor(.secondary)
-        }
-        .frame(maxWidth: .infinity)
     }
 }
 
@@ -213,58 +186,15 @@ struct DeliveryCard: View {
     }
 }
 
-// MARK: - Status Badge
-
-struct StatusBadge: View {
-    let status: DeliveryStatus
-    
-    var body: some View {
-        HStack(spacing: 4) {
-            Image(systemName: status.iconName)
-                .font(.caption)
-            
-            Text(status.rawValue)
-                .font(.caption)
-                .fontWeight(.medium)
-        }
-        .foregroundColor(colorForStatus(status))
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(colorForStatus(status).opacity(0.1))
-        .cornerRadius(8)
-    }
-    
-    private func colorForStatus(_ status: DeliveryStatus) -> Color {
-        switch status {
-        case .pending: return .gray
-        case .inTransit: return .blue
-        case .arrived: return .orange
-        case .awaitingCode: return .yellow
-        case .confirmed: return .green
-        case .failed: return .red
-        case .cancelled: return .red
-        }
-    }
-}
-
 // MARK: - Empty State
 
 struct EmptyDeliveriesView: View {
     var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "truck.box")
-                .font(.system(size: 60))
-                .foregroundColor(.secondary)
-            
-            Text("Нет активных доставок")
-                .font(.title2)
-                .fontWeight(.bold)
-            
-            Text("Новые доставки появятся здесь")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        EmptyStateView(
+            icon: "truck.box",
+            title: "Нет активных доставок",
+            message: "Новые доставки появятся здесь"
+        )
     }
 }
 
@@ -329,7 +259,7 @@ struct DeliveryDetailView: View {
                 InfoRow(
                     icon: "clock",
                     title: "Создан",
-                    value: DateFormatter.shortDateTimeFormatter.string(from: delivery.createdAt)
+                    value: DateFormatter.shortDateTime.string(from: delivery.createdAt)
                 )
             }
             .padding(16)
@@ -356,14 +286,14 @@ struct DeliveryDetailView: View {
                         icon: "lock",
                         title: "Код отправлен",
                         value: delivery.smsCodeRequestedAt != nil ?
-                            DateFormatter.shortTimeFormatter.string(from: delivery.smsCodeRequestedAt!) : "—"
+                            DateFormatter.shortTime.string(from: delivery.smsCodeRequestedAt!) : "—"
                     )
                     
                     if let expiresAt = delivery.codeExpiresAt {
                         InfoRow(
                             icon: "timer",
                             title: "Действителен до",
-                            value: DateFormatter.shortTimeFormatter.string(from: expiresAt)
+                            value: DateFormatter.shortTime.string(from: expiresAt)
                         )
                     }
                 }
@@ -460,30 +390,6 @@ struct DeliveryDetailView: View {
 }
 
 // MARK: - Helper Views
-
-struct InfoRow: View {
-    let icon: String
-    let title: String
-    let value: String
-    
-    var body: some View {
-        HStack {
-            Image(systemName: icon)
-                .foregroundColor(.secondary)
-                .frame(width: 20)
-            
-            Text(title)
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-            
-            Spacer()
-            
-            Text(value)
-                .font(.subheadline)
-                .fontWeight(.medium)
-        }
-    }
-}
 
 struct ActionButton: View {
     let title: String
@@ -664,23 +570,6 @@ struct CodeDigitView: View {
             )
             .cornerRadius(8)
     }
-}
-
-// MARK: - Date Formatter Extensions
-
-extension DateFormatter {
-    static let shortDateTimeFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .short
-        formatter.timeStyle = .short
-        return formatter
-    }()
-    
-    static let shortTimeFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.timeStyle = .short
-        return formatter
-    }()
 }
 
 #Preview {

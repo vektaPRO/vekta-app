@@ -166,32 +166,6 @@ extension KaspiAPITokenView {
     }
 }
 
-// 📝 Компонент для шагов инструкции
-struct InstructionStep: View {
-    let number: String
-    let text: String
-    
-    var body: some View {
-        HStack(spacing: 12) {
-            // Номер шага
-            Text(number)
-                .font(.caption)
-                .fontWeight(.bold)
-                .foregroundColor(.white)
-                .frame(width: 24, height: 24)
-                .background(Color.blue)
-                .clipShape(Circle())
-            
-            // Текст шага
-            Text(text)
-                .font(.subheadline)
-                .foregroundColor(.primary)
-            
-            Spacer()
-        }
-    }
-}
-
 #Preview {
     KaspiAPITokenView()
 }

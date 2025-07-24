@@ -587,11 +587,11 @@ struct OrderSummaryCard: View {
             
             // Детали
             VStack(alignment: .leading, spacing: 8) {
-                InfoRow(title: "Склад:", value: warehouse)
-                InfoRow(title: "Приоритет:", value: priority.rawValue)
+                InfoRow(icon: "", title: "Склад:", value: warehouse)
+                InfoRow(icon: "", title: "Приоритет:", value: priority.rawValue)
                 
                 if let delivery = estimatedDelivery {
-                    InfoRow(title: "Планируемая дата:", value: DateFormatter.mediumDateFormatter.string(from: delivery))
+                    InfoRow(icon: "", title: "Планируемая дата:", value: DateFormatter.mediumDate.string(from: delivery))
                 }
                 
                 if !notes.isEmpty {
@@ -610,33 +610,6 @@ struct OrderSummaryCard: View {
         .background(Color(UIColor.systemGray6))
         .cornerRadius(12)
     }
-}
-
-/// Строка информации
-struct InfoRow: View {
-    let title: String
-    let value: String
-    
-    var body: some View {
-        HStack {
-            Text(title)
-                .font(.subheadline)
-                .fontWeight(.medium)
-            Spacer()
-            Text(value)
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-        }
-    }
-}
-
-// MARK: - Расширения DateFormatter
-extension DateFormatter {
-    static let shortDate: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .short
-        return formatter
-    }()
 }
 
 #Preview {

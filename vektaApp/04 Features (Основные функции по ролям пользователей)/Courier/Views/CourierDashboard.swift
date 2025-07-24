@@ -170,21 +170,21 @@ extension CourierDashboard {
                 .font(.headline)
             
             HStack(spacing: 12) {
-                CourierStatCard(
+                StatCard(
                     icon: "checkmark.circle.fill",
                     title: "Доставлено",
                     value: "\(deliveryViewModel.todayDeliveries)",
                     color: .green
                 )
                 
-                CourierStatCard(
+                StatCard(
                     icon: "clock.fill",
                     title: "В процессе",
                     value: "\(deliveryViewModel.pendingDeliveries)",
                     color: .orange
                 )
                 
-                CourierStatCard(
+                StatCard(
                     icon: "tenge.circle.fill",
                     title: "Заработано",
                     value: "15,000",
@@ -277,31 +277,6 @@ extension CourierDashboard {
 }
 
 // MARK: - Card Components
-
-// Компонент StatCard для курьера (переименован для избежания конфликта)
-struct CourierStatCard: View {
-    let icon: String
-    let title: String
-    let value: String
-    let color: Color
-    
-    var body: some View {
-        VStack(spacing: 8) {
-            Image(systemName: icon)
-                .font(.title2)
-                .foregroundColor(color)
-            
-            Text(value)
-                .font(.title2)
-                .fontWeight(.bold)
-            
-            Text(title)
-                .font(.caption)
-                .foregroundColor(.secondary)
-        }
-        .frame(maxWidth: .infinity)
-    }
-}
 
 struct CurrentDeliveryCard: View {
     let delivery: DeliveryConfirmation

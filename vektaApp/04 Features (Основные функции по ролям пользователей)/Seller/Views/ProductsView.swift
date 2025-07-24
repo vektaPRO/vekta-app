@@ -194,7 +194,7 @@ extension ProductsView {
             } else if viewModel.isSyncing {
                 LoadingView("Синхронизация с Kaspi API...")
             } else if viewModel.filteredProducts.isEmpty {
-                EmptyStateView(
+                ProductsEmptyStateView(
                     searchText: viewModel.searchText,
                     hasFilters: viewModel.selectedStatus != nil || viewModel.selectedCategory != "Все"
                 ) {
@@ -265,27 +265,6 @@ struct StatBadge: View {
                 .foregroundColor(.secondary)
         }
         .frame(maxWidth: .infinity)
-    }
-}
-
-/// Фильтр чип
-struct FilterChip: View {
-    let title: String
-    let isSelected: Bool
-    let color: Color
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            Text(title)
-                .font(.caption)
-                .fontWeight(.medium)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(isSelected ? color : Color(UIColor.systemGray5))
-                .foregroundColor(isSelected ? .white : .primary)
-                .cornerRadius(16)
-        }
     }
 }
 
@@ -380,7 +359,7 @@ struct ProductCard: View {
 }
 
 /// Пустое состояние
-struct EmptyStateView: View {
+struct ProductsEmptyStateView: View {
     let searchText: String
     let hasFilters: Bool
     let onSync: () -> Void
@@ -436,38 +415,6 @@ struct EmptyStateView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-}
-
-/// Загрузка
-struct LoadingView: View {
-    let message: String
-    
-    init(_ message: String = "Загрузка...") {
-        self.message = message
-    }
-    
-    var body: some View {
-        VStack(spacing: 16) {
-            ProgressView()
-                .scaleEffect(1.2)
-            
-            Text(message)
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-}
-
-// MARK: - Extensions
-
-extension DateFormatter {
-    static let shortDateTime: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .short
-        formatter.timeStyle = .short
-        return formatter
-    }()
 }
 
 #Preview {

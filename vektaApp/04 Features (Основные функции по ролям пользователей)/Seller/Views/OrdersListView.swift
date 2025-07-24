@@ -231,19 +231,7 @@ struct OrderCard: View {
                     Spacer()
                     
                     // Статус
-                    HStack(spacing: 4) {
-                        Image(systemName: order.statusIcon)
-                            .foregroundColor(Color(order.statusColor))
-                        
-                        Text(order.status.rawValue)
-                            .font(.caption)
-                            .fontWeight(.medium)
-                            .foregroundColor(Color(order.statusColor))
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color(order.statusColor).opacity(0.1))
-                    .cornerRadius(12)
+                    StatusBadge(status: order.status)
                 }
                 
                 // Информация о заказе
@@ -277,7 +265,7 @@ struct OrderCard: View {
                         .foregroundColor(.secondary)
                         .font(.caption)
                     
-                    Text(DateFormatter.shortDateTimeFormatter.string(from: order.createdAt))
+                    Text(DateFormatter.shortDateTime.string(from: order.createdAt))
                         .font(.caption)
                         .foregroundColor(.secondary)
                     
@@ -324,37 +312,13 @@ struct OrdersEmptyStateView: View {
     let onCreateOrder: () -> Void
     
     var body: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "doc.text.below.ecg")
-                .font(.system(size: 60))
-                .foregroundColor(.secondary)
-            
-            VStack(spacing: 8) {
-                Text("Заказов пока нет")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                
-                Text("Создайте первый заказ на отправку товаров на склад")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 40)
-            }
-            
-            Button(action: onCreateOrder) {
-                HStack {
-                    Image(systemName: "plus.circle.fill")
-                    Text("Создать заказ")
-                }
-                .fontWeight(.semibold)
-                .padding(.horizontal, 24)
-                .padding(.vertical, 12)
-                .background(Color.blue)
-                .foregroundColor(.white)
-                .cornerRadius(12)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        EmptyStateView(
+            icon: "doc.text.below.ecg",
+            title: "Заказов пока нет",
+            message: "Создайте первый заказ на отправку товаров на склад",
+            actionTitle: "Создать заказ",
+            action: onCreateOrder
+        )
     }
 }
 
@@ -385,7 +349,7 @@ struct OrderDetailView: View {
                             
                             Spacer()
                             
-                            Text(DateFormatter.shortDateTimeFormatter.string(from: order.createdAt))
+                            Text(DateFormatter.shortDateTime.string(from: order.createdAt))
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                         }
