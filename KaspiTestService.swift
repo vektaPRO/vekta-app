@@ -2,7 +2,7 @@
 //  KaspiTestService.swift
 //  vektaApp
 //
-//  Сервис для тестирования интеграции с Kaspi API
+//  Обновленный сервис для тестирования интеграции с Kaspi API
 //
 
 import Foundation
@@ -32,6 +32,7 @@ class KaspiTestService: ObservableObject {
         var status: TestStatus
         var message: String?
         var duration: TimeInterval?
+        var error: Error?
     }
     
     // MARK: - Test Suite
@@ -94,11 +95,186 @@ class KaspiTestService: ObservableObject {
         
         if let token = kaspiService.apiToken, !token.isEmpty {
             return TestResult(
+                name: "API Token",
+                description: "Проверка наличия API токена",
+                status: .passed,
+                message: "Токен загружен успешно",
+                duration: duration
+            )
+        } else {
+            return TestResult(
+                name: "API Token",
+                description: "Проверка наличия API токена",
+                status: .failed,
+                message: "Токен не найден. Добавьте токен в настройках.",
+                duration: duration
+            )
+        }
+    }
+    
+    private func testTokenValidation() async -> TestResult {
+        let startTime = Date()
+        
+        do {
+            let isValid = try await kaspiService.validateToken()
+            let duration = Date().timeIntervalSince(startTime)
+            
+            if isValid {
+                return TestResult(
+                    name: "Token Validation",
+                    description: "Валидация токена через API",
+                    status: .passed,
+                    message: "Токен валидный",
+                    duration: duration
+                )
+            } else {
+                return TestResult(
+                    name: "Token Validation",
+                    description: "Валидация токена через API",
+                    status: .failed,
+                    message: "Токен невалидный",
+                    duration: duration
+                )
+            }
+        } catch {
+            let duration = Date().timeIntervalSince(startTime)
+            ErrorHandler.handle(error, context: "testTokenValidation")
+            
+            return TestResult(
+                name: "Token Validation",
+                description: "Валидация токена через API",
+                status: .failed,
+                message: ErrorHandler.userMessage(for: error),
+                duration: duration,
+                error: error
+            )
+        }
+    }
+    
+    private func testProductsSync() async -> TestResult {
+        let startTime = Date()
+        
+        do {
+            let products = try await kaspiService.syncAllProducts()
+            let duration = Date().timeIntervalSince(startTime)
+            
+            return TestResult(
+                name: "Products Sync",
+                description: "Синхронизация товаров",
+                status: .passed,
+                message: "Синхронизировано \(products.count) товаров",
+                duration: duration
+            )
+        } catch {
+            let duration = Date().timeIntervalSince(startTime)
+            ErrorHandler.handle(error, context: "testProductsSync")
+            
+            return TestResult(
+                name: "Products Sync",
+                description: "Синхронизация товаров",
+                status: .failed,
+                message: ErrorHandler.userMessage(for: error),
+                duration: duration,
+                error: error
+            )
+        }
+    }
+    
+    private func testSMSRequest() async -> TestResult {
+        let startTime = Date()
+        
+        // Тестовые данные
+        let testOrderId = "TEST-\(UUID().uuidString.prefix(8))"
+        let testTrackingNumber = "TRK-\(Int.random(in: 100000...999999))"
+        let testPhone = "+77771234567"
+        
+        do {
+            let messageId = try await kaspiService.requestSMSCode(
+                orderId: testOrderId,
+                trackingNumber: testTrackingNumber,
+                customerPhone: testPhone
+            )
+            let duration = Date().timeIntervalSince(startTime)
+            
+            return TestResult(
+                name: "SMS Request",
+                description: "Отправка SMS кода",
+                status: .passed,
+                message: "SMS отправлен, ID: \(messageId)",
+                duration: duration
+            )
+        } catch {
+            let duration = Date().timeIntervalSince(startTime)
+            ErrorHandler.handle(error, context: "testSMSRequest")
+            
+            return TestResult(
+                name: "SMS Request",
+                description: "Отправка SMS кода",
+                status: .failed,
+                message: ErrorHandler.userMessage(for: error),
+                duration: duration,
+                error: error
+            )
+        }
+    }
+    
+    private func testDeliveryConfirmation() async -> TestResult {
+        let startTime = Date()
+        
+        // Тестовые данные
+        let testOrderId = "TEST-\(UUID().uuidString.prefix(8))"
+        let testTrackingNumber = "TRK-\(Int.random(in: 100000...999999))"
+        let testCode = "123456" // В реальности код придет по SMS
+        
+        do {
+            let isConfirmed = try await kaspiService.confirmDelivery(
+                orderId: testOrderId,
+                trackingNumber: testTrackingNumber,
+                smsCode: testCode
+            )
+            let duration = Date().timeIntervalSince(startTime)
+            
+            if isConfirmed {
+                return TestResult(
+                    name: "Delivery Confirmation",
+                    description: "Подтверждение доставки",
+                    status: .passed,
+                    message: "Доставка подтверждена",
+                    duration: duration
+                )
+            } else {
+                return TestResult(
+                    name: "Delivery Confirmation",
+                    description: "Подтверждение доставки",
+                    status: .failed,
+                    message: "Не удалось подтвердить доставку",
+                    duration: duration
+                )
+            }
+        } catch {
+            let duration = Date().timeIntervalSince(startTime)
+            ErrorHandler.handle(error, context: "testDeliveryConfirmation")
+            
+            // Если ошибка из-за неверного кода, это ожидаемо для теста
+            if let kaspiError = error as? KaspiAPIError,
+               case .deliveryConfirmationFailed(let message) = kaspiError,
+               message.contains("Неверный код") {
+                return TestResult(
+                    name: "Delivery Confirmation",
+                    description: "Подтверждение доставки",
+                    status: .passed,
+                    message: "API корректно отклонил неверный код",
+                    duration: duration
+                )
+            }
+            
+            return TestResult(
                 name: "Delivery Confirmation",
                 description: "Подтверждение доставки",
                 status: .failed,
-                message: error.localizedDescription,
-                duration: duration
+                message: ErrorHandler.userMessage(for: error),
+                duration: duration,
+                error: error
             )
         }
     }
@@ -129,12 +305,15 @@ class KaspiTestService: ObservableObject {
             )
         } catch {
             let duration = Date().timeIntervalSince(startTime)
+            ErrorHandler.handle(error, context: "testStockUpdate")
+            
             return TestResult(
                 name: "Stock Update",
                 description: "Обновление остатков",
                 status: .failed,
-                message: error.localizedDescription,
-                duration: duration
+                message: ErrorHandler.userMessage(for: error),
+                duration: duration,
+                error: error
             )
         }
     }
@@ -155,12 +334,15 @@ class KaspiTestService: ObservableObject {
             )
         } catch {
             let duration = Date().timeIntervalSince(startTime)
+            ErrorHandler.handle(error, context: "testWarehouses")
+            
             return TestResult(
                 name: "Warehouses",
                 description: "Загрузка списка складов",
                 status: .failed,
-                message: error.localizedDescription,
-                duration: duration
+                message: ErrorHandler.userMessage(for: error),
+                duration: duration,
+                error: error
             )
         }
     }
@@ -171,13 +353,20 @@ class KaspiTestService: ObservableObject {
         // Делаем несколько быстрых запросов
         var successCount = 0
         var rateLimitHit = false
+        var lastError: Error?
         
         for i in 0..<10 {
             do {
                 _ = try await kaspiService.validateToken()
                 successCount += 1
             } catch {
-                if error.localizedDescription.contains("лимит") {
+                lastError = error
+                if let networkError = error as? NetworkError,
+                   case .rateLimited = networkError {
+                    rateLimitHit = true
+                    break
+                } else if let kaspiError = error as? KaspiAPIError,
+                          case .apiQuotaExceeded = kaspiError {
                     rateLimitHit = true
                     break
                 }
@@ -197,13 +386,22 @@ class KaspiTestService: ObservableObject {
                 message: "Rate limiting работает корректно",
                 duration: duration
             )
-        } else {
+        } else if successCount > 0 {
             return TestResult(
                 name: "Rate Limiting",
                 description: "Проверка лимитов запросов",
                 status: .passed,
                 message: "Выполнено \(successCount) запросов без превышения лимита",
                 duration: duration
+            )
+        } else {
+            return TestResult(
+                name: "Rate Limiting",
+                description: "Проверка лимитов запросов",
+                status: .failed,
+                message: lastError != nil ? ErrorHandler.userMessage(for: lastError!) : "Не удалось выполнить запросы",
+                duration: duration,
+                error: lastError
             )
         }
     }
@@ -302,6 +500,7 @@ struct KaspiAPITestView: View {
                 if testService.isRunning {
                     ProgressView()
                         .scaleEffect(0.8)
+                        .foregroundColor(.white)
                 } else {
                     Image(systemName: "play.circle.fill")
                 }
@@ -410,11 +609,30 @@ struct TestResultRow: View {
             }
             .buttonStyle(PlainButtonStyle())
             
-            if isExpanded, let message = result.message {
-                Text(message)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .padding(.leading, 28)
+            if isExpanded {
+                VStack(alignment: .leading, spacing: 8) {
+                    if let message = result.message {
+                        Text(message)
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .padding(.leading, 28)
+                    }
+                    
+                    if let error = result.error {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Подробности ошибки:")
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.red)
+                                .padding(.leading, 28)
+                            
+                            Text("\(type(of: error)): \(error.localizedDescription)")
+                                .font(.caption)
+                                .foregroundColor(.red)
+                                .padding(.leading, 28)
+                        }
+                    }
+                }
             }
         }
         .padding()
@@ -460,165 +678,4 @@ struct TestResultRow: View {
             return .orange
         }
     }
-}name: "API Token",
-                description: "Проверка наличия API токена",
-                status: .passed,
-                message: "Токен загружен успешно",
-                duration: duration
-            )
-        } else {
-            return TestResult(
-                name: "API Token",
-                description: "Проверка наличия API токена",
-                status: .failed,
-                message: "Токен не найден. Добавьте токен в настройках.",
-                duration: duration
-            )
-        }
-    }
-    
-    private func testTokenValidation() async -> TestResult {
-        let startTime = Date()
-        
-        do {
-            let isValid = try await kaspiService.validateToken()
-            let duration = Date().timeIntervalSince(startTime)
-            
-            if isValid {
-                return TestResult(
-                    name: "Token Validation",
-                    description: "Валидация токена через API",
-                    status: .passed,
-                    message: "Токен валидный",
-                    duration: duration
-                )
-            } else {
-                return TestResult(
-                    name: "Token Validation",
-                    description: "Валидация токена через API",
-                    status: .failed,
-                    message: "Токен невалидный",
-                    duration: duration
-                )
-            }
-        } catch {
-            let duration = Date().timeIntervalSince(startTime)
-            return TestResult(
-                name: "Token Validation",
-                description: "Валидация токена через API",
-                status: .failed,
-                message: error.localizedDescription,
-                duration: duration
-            )
-        }
-    }
-    
-    private func testProductsSync() async -> TestResult {
-        let startTime = Date()
-        
-        do {
-            let products = try await kaspiService.syncAllProducts()
-            let duration = Date().timeIntervalSince(startTime)
-            
-            return TestResult(
-                name: "Products Sync",
-                description: "Синхронизация товаров",
-                status: .passed,
-                message: "Синхронизировано \(products.count) товаров",
-                duration: duration
-            )
-        } catch {
-            let duration = Date().timeIntervalSince(startTime)
-            return TestResult(
-                name: "Products Sync",
-                description: "Синхронизация товаров",
-                status: .failed,
-                message: error.localizedDescription,
-                duration: duration
-            )
-        }
-    }
-    
-    private func testSMSRequest() async -> TestResult {
-        let startTime = Date()
-        
-        // Тестовые данные
-        let testOrderId = "TEST-\(UUID().uuidString.prefix(8))"
-        let testTrackingNumber = "TRK-\(Int.random(in: 100000...999999))"
-        let testPhone = "+77771234567"
-        
-        do {
-            let messageId = try await kaspiService.requestSMSCode(
-                orderId: testOrderId,
-                trackingNumber: testTrackingNumber,
-                customerPhone: testPhone
-            )
-            let duration = Date().timeIntervalSince(startTime)
-            
-            return TestResult(
-                name: "SMS Request",
-                description: "Отправка SMS кода",
-                status: .passed,
-                message: "SMS отправлен, ID: \(messageId)",
-                duration: duration
-            )
-        } catch {
-            let duration = Date().timeIntervalSince(startTime)
-            return TestResult(
-                name: "SMS Request",
-                description: "Отправка SMS кода",
-                status: .failed,
-                message: error.localizedDescription,
-                duration: duration
-            )
-        }
-    }
-    
-    private func testDeliveryConfirmation() async -> TestResult {
-        let startTime = Date()
-        
-        // Тестовые данные
-        let testOrderId = "TEST-\(UUID().uuidString.prefix(8))"
-        let testTrackingNumber = "TRK-\(Int.random(in: 100000...999999))"
-        let testCode = "123456" // В реальности код придет по SMS
-        
-        do {
-            let isConfirmed = try await kaspiService.confirmDelivery(
-                orderId: testOrderId,
-                trackingNumber: testTrackingNumber,
-                smsCode: testCode
-            )
-            let duration = Date().timeIntervalSince(startTime)
-            
-            if isConfirmed {
-                return TestResult(
-                    name: "Delivery Confirmation",
-                    description: "Подтверждение доставки",
-                    status: .passed,
-                    message: "Доставка подтверждена",
-                    duration: duration
-                )
-            } else {
-                return TestResult(
-                    name: "Delivery Confirmation",
-                    description: "Подтверждение доставки",
-                    status: .failed,
-                    message: "Не удалось подтвердить доставку",
-                    duration: duration
-                )
-            }
-        } catch {
-            let duration = Date().timeIntervalSince(startTime)
-            
-            // Если ошибка из-за неверного кода, это ожидаемо для теста
-            if error.localizedDescription.contains("Неверный код") {
-                return TestResult(
-                    name: "Delivery Confirmation",
-                    description: "Подтверждение доставки",
-                    status: .passed,
-                    message: "API корректно отклонил неверный код",
-                    duration: duration
-                )
-            }
-            
-            return TestResult(
+}

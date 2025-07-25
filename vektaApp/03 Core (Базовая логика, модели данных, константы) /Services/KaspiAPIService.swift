@@ -2,12 +2,13 @@
 //  KaspiAPIService.swift
 //  vektaApp
 //
-//  Полная интеграция с Kaspi API
+//  Обновленная интеграция с Kaspi API с централизованной обработкой ошибок
 //
 
 import Foundation
 import FirebaseAuth
 import FirebaseFirestore
+import Combine
 
 // MARK: - Kaspi API Models
 
@@ -153,43 +154,6 @@ struct KaspiStockUpdateResponse: Codable {
     }
 }
 
-// MARK: - Errors
-
-enum KaspiAPIError: LocalizedError {
-    case tokenNotFound
-    case invalidToken
-    case networkError(String)
-    case authenticationFailed
-    case rateLimitExceeded
-    case invalidResponse
-    case syncFailed(String)
-    case smsCodeError(String)
-    case stockUpdateError(String)
-    
-    var errorDescription: String? {
-        switch self {
-        case .tokenNotFound:
-            return "API токен не найден. Пожалуйста, добавьте токен в настройках."
-        case .invalidToken:
-            return "Неверный API токен. Проверьте правильность токена."
-        case .networkError(let message):
-            return "Ошибка сети: \(message)"
-        case .authenticationFailed:
-            return "Ошибка аутентификации. Проверьте ваш API токен."
-        case .rateLimitExceeded:
-            return "Превышен лимит запросов. Попробуйте позже."
-        case .invalidResponse:
-            return "Некорректный ответ от сервера"
-        case .syncFailed(let message):
-            return "Ошибка синхронизации: \(message)"
-        case .smsCodeError(let message):
-            return "Ошибка отправки SMS кода: \(message)"
-        case .stockUpdateError(let message):
-            return "Ошибка обновления остатков: \(message)"
-        }
-    }
-}
-
 // MARK: - KaspiAPIService
 
 @MainActor
@@ -315,16 +279,9 @@ class KaspiAPIService: ObservableObject {
             return response.valid
             
         } catch let error as NetworkError {
-            switch error {
-            case .unauthorized:
-                throw KaspiAPIError.invalidToken
-            case .rateLimited:
-                throw KaspiAPIError.rateLimitExceeded
-            default:
-                throw KaspiAPIError.networkError(error.localizedDescription)
-            }
+            throw KaspiAPIError.from(error)
         } catch {
-            throw KaspiAPIError.networkError(error.localizedDescription)
+            throw KaspiAPIError.underlying(NetworkError.from(error))
         }
     }
     
@@ -388,11 +345,23 @@ class KaspiAPIService: ObservableObject {
             
             return allProducts
             
-        } catch {
+        } catch let error as KaspiAPIError {
             isLoading = false
             errorMessage = error.localizedDescription
             syncProgress = 0.0
             throw error
+        } catch let error as NetworkError {
+            isLoading = false
+            let kaspiError = KaspiAPIError.from(error)
+            errorMessage = kaspiError.localizedDescription
+            syncProgress = 0.0
+            throw kaspiError
+        } catch {
+            isLoading = false
+            let kaspiError = KaspiAPIError.underlying(NetworkError.from(error))
+            errorMessage = kaspiError.localizedDescription
+            syncProgress = 0.0
+            throw kaspiError
         }
     }
     
@@ -490,14 +459,9 @@ class KaspiAPIService: ObservableObject {
             }
             
         } catch let error as NetworkError {
-            switch error {
-            case .serverError(_, let message):
-                throw KaspiAPIError.smsCodeError(message ?? "Ошибка сервера")
-            case .rateLimited:
-                throw KaspiAPIError.rateLimitExceeded
-            default:
-                throw KaspiAPIError.networkError(error.localizedDescription)
-            }
+            throw KaspiAPIError.from(error)
+        } catch let error as KaspiAPIError {
+            throw error
         } catch {
             throw KaspiAPIError.smsCodeError(error.localizedDescription)
         }
@@ -533,18 +497,15 @@ class KaspiAPIService: ObservableObject {
                 
                 return true
             } else {
-                throw KaspiAPIError.smsCodeError(response.message ?? "Неверный код подтверждения")
+                throw KaspiAPIError.deliveryConfirmationFailed(response.message ?? "Неверный код подтверждения")
             }
             
         } catch let error as NetworkError {
-            switch error {
-            case .serverError(_, let message):
-                throw KaspiAPIError.smsCodeError(message ?? "Ошибка проверки кода")
-            default:
-                throw KaspiAPIError.networkError(error.localizedDescription)
-            }
-        } catch {
+            throw KaspiAPIError.from(error)
+        } catch let error as KaspiAPIError {
             throw error
+        } catch {
+            throw KaspiAPIError.deliveryConfirmationFailed(error.localizedDescription)
         }
     }
     
@@ -611,14 +572,11 @@ class KaspiAPIService: ObservableObject {
             }
             
         } catch let error as NetworkError {
-            switch error {
-            case .serverError(_, let message):
-                throw KaspiAPIError.stockUpdateError(message ?? "Ошибка сервера")
-            default:
-                throw KaspiAPIError.networkError(error.localizedDescription)
-            }
-        } catch {
+            throw KaspiAPIError.from(error)
+        } catch let error as KaspiAPIError {
             throw error
+        } catch {
+            throw KaspiAPIError.stockUpdateError(error.localizedDescription)
         }
     }
     
@@ -628,6 +586,7 @@ class KaspiAPIService: ObservableObject {
         do {
             return try await validateToken()
         } catch {
+            ErrorHandler.handle(error, context: "KaspiAPIService.checkAPIHealth")
             return false
         }
     }
@@ -635,48 +594,6 @@ class KaspiAPIService: ObservableObject {
     var apiStatistics: (requests: Int, lastSync: Date?) {
         // TODO: Implement request counting
         return (0, lastSyncDate)
-    }
-    
-    // MARK: - Batch Operations
-    
-    /// Загрузить товары по списку ID
-    func loadProductsByIds(_ productIds: [String]) async throws -> [Product] {
-        guard let token = apiToken else {
-            throw KaspiAPIError.tokenNotFound
-        }
-        
-        var products: [Product] = []
-        
-        // Загружаем товары батчами по 10
-        for chunk in productIds.chunked(into: 10) {
-            let requests = chunk.map { productId in
-                networkManager.get(
-                    endpoint: String(format: Endpoints.productDetail, productId),
-                    apiToken: token
-                ) as Future<KaspiProductResponse, Error>
-            }
-            
-            // Ждем все запросы в батче
-            let responses = try await withThrowingTaskGroup(of: KaspiProductResponse.self) { group in
-                for request in requests {
-                    group.addTask {
-                        try await request.value
-                    }
-                }
-                
-                var results: [KaspiProductResponse] = []
-                for try await response in group {
-                    results.append(response)
-                }
-                return results
-            }
-            
-            // Конвертируем в наш формат
-            let convertedProducts = responses.map { convertKaspiProductToProduct($0) }
-            products.append(contentsOf: convertedProducts)
-        }
-        
-        return products
     }
     
     /// Получить список складов
@@ -701,55 +618,32 @@ class KaspiAPIService: ObservableObject {
             }
         }
         
-        let response: KaspiResponse<[KaspiWarehouse]> = try await networkManager.get(
-            endpoint: Endpoints.warehouses,
-            apiToken: token
-        )
-        
-        guard let kaspiWarehouses = response.data else {
-            throw KaspiAPIError.invalidResponse
-        }
-        
-        return kaspiWarehouses.map { kaspiWarehouse in
-            Warehouse(
-                id: kaspiWarehouse.id,
-                name: kaspiWarehouse.name,
-                address: kaspiWarehouse.address,
-                city: kaspiWarehouse.city,
-                isActive: kaspiWarehouse.isActive
+        do {
+            let response: KaspiResponse<[KaspiWarehouse]> = try await networkManager.get(
+                endpoint: Endpoints.warehouses,
+                apiToken: token
             )
-        }
-    }
-}
-
-// MARK: - Helper Extensions
-
-extension Array {
-    func chunked(into size: Int) -> [[Element]] {
-        return stride(from: 0, to: count, by: size).map {
-            Array(self[$0..<Swift.min($0 + size, count)])
-        }
-    }
-}
-
-// MARK: - Future extension for async/await
-
-extension Future {
-    var value: Output {
-        get async throws {
-            try await withCheckedThrowingContinuation { continuation in
-                self.sink(
-                    receiveCompletion: { completion in
-                        if case .failure(let error) = completion {
-                            continuation.resume(throwing: error)
-                        }
-                    },
-                    receiveValue: { value in
-                        continuation.resume(returning: value)
-                    }
-                )
-                .store(in: &Set<AnyCancellable>())
+            
+            guard let kaspiWarehouses = response.data else {
+                throw KaspiAPIError.warehouseNotFound
             }
+            
+            return kaspiWarehouses.map { kaspiWarehouse in
+                Warehouse(
+                    id: kaspiWarehouse.id,
+                    name: kaspiWarehouse.name,
+                    address: kaspiWarehouse.address,
+                    city: kaspiWarehouse.city,
+                    isActive: kaspiWarehouse.isActive
+                )
+            }
+            
+        } catch let error as NetworkError {
+            throw KaspiAPIError.from(error)
+        } catch let error as KaspiAPIError {
+            throw error
+        } catch {
+            throw KaspiAPIError.warehouseNotFound
         }
     }
 }

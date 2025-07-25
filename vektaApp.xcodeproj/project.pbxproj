@@ -15,6 +15,8 @@
 		4E4C1D402E32273800CAEC71 /* RetryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E4C1D3F2E32273800CAEC71 /* RetryManager.swift */; };
 		4E4C1D422E32277800CAEC71 /* KaspiTestService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E4C1D412E32277800CAEC71 /* KaspiTestService.swift */; };
 		4E4C1D442E322C9000CAEC71 /* Seller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E4C1D432E322C9000CAEC71 /* Seller.swift */; };
+		4E6966552E33C06F009054C9 /* KaspiOrdersIntegration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E6966542E33C06F009054C9 /* KaspiOrdersIntegration.swift */; };
+		4E6966B62E33CE98009054C9 /* KaspiOrder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E6966B52E33CE98009054C9 /* KaspiOrder.swift */; };
 		4EE757242E1310DB00BD34CE /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 4EE757232E1310DB00BD34CE /* FirebaseCore */; };
 /* End PBXBuildFile section */
 
@@ -45,6 +47,8 @@
 		4E4C1D3F2E32273800CAEC71 /* RetryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetryManager.swift; sourceTree = "<group>"; };
 		4E4C1D412E32277800CAEC71 /* KaspiTestService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KaspiTestService.swift; sourceTree = "<group>"; };
 		4E4C1D432E322C9000CAEC71 /* Seller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Seller.swift; sourceTree = "<group>"; };
+		4E6966542E33C06F009054C9 /* KaspiOrdersIntegration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KaspiOrdersIntegration.swift; sourceTree = "<group>"; };
+		4E6966B52E33CE98009054C9 /* KaspiOrder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KaspiOrder.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -96,6 +100,8 @@
 		4E454DA62E0E3B8000591B30 = {
 			isa = PBXGroup;
 			children = (
+				4E6966B52E33CE98009054C9 /* KaspiOrder.swift */,
+				4E6966542E33C06F009054C9 /* KaspiOrdersIntegration.swift */,
 				4E4C1D432E322C9000CAEC71 /* Seller.swift */,
 				4E4C1D412E32277800CAEC71 /* KaspiTestService.swift */,
 				4E4C1D3F2E32273800CAEC71 /* RetryManager.swift */,
@@ -270,7 +276,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				4E4C1D3C2E3226BC00CAEC71 /* NetworkManager.swift in Sources */,
+				4E6966B62E33CE98009054C9 /* KaspiOrder.swift in Sources */,
 				4E4C1D402E32273800CAEC71 /* RetryManager.swift in Sources */,
+				4E6966552E33C06F009054C9 /* KaspiOrdersIntegration.swift in Sources */,
 				4E4C1D442E322C9000CAEC71 /* Seller.swift in Sources */,
 				4E4C1D3E2E32270600CAEC71 /* APIConfiguration.swift in Sources */,
 				4E4C1D422E32277800CAEC71 /* KaspiTestService.swift in Sources */,

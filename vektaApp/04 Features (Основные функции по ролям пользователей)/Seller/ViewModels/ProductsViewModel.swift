@@ -47,7 +47,7 @@ class ProductsViewModel: ObservableObject {
     // 🔥 Firebase и Services
     private let db = Firestore.firestore()
     private var listener: ListenerRegistration?
-    private let kaspiService = KaspiAPIService()
+    let kaspiService = KaspiAPIService()
     private var cancellables = Set<AnyCancellable>()
     
     // 📚 Категории товаров

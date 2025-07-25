@@ -2,7 +2,7 @@
 //  RetryManager.swift
 //  vektaApp
 //
-//  Менеджер для обработки повторных попыток при сетевых ошибках
+//  Обновленный менеджер для обработки повторных попыток при сетевых ошибках
 //
 
 import Foundation
@@ -88,7 +88,7 @@ class RetryManager {
         }
         
         // Если мы здесь, значит все попытки исчерпаны
-        throw lastError ?? NetworkError.unknown
+        throw lastError ?? NetworkError.invalidResponse
     }
     
     /// Вычислить задержку для повторной попытки
@@ -111,17 +111,14 @@ class RetryManager {
     
     /// Определить, нужно ли повторять по умолчанию
     private func shouldRetryDefault(_ error: Error) -> Bool {
+        // Проверяем NetworkError
         if let networkError = error as? NetworkError {
-            switch networkError {
-            case .networkError, .serverError(let code, _) where code >= 500:
-                return true
-            case .rateLimited:
-                return true
-            case .invalidResponse:
-                return false
-            default:
-                return false
-            }
+            return networkError.shouldRetry
+        }
+        
+        // Проверяем KaspiAPIError
+        if let kaspiError = error as? KaspiAPIError {
+            return kaspiError.canRetry
         }
         
         // NSURLError
@@ -244,28 +241,5 @@ class CircuitBreaker {
         failureCount = 0
         successCount = 0
         lastFailureTime = nil
-    }
-}
-
-// MARK: - Circuit Breaker Error
-
-enum CircuitBreakerError: LocalizedError {
-    case circuitOpen
-    
-    var errorDescription: String? {
-        switch self {
-        case .circuitOpen:
-            return "Сервис временно недоступен. Попробуйте позже."
-        }
-    }
-}
-
-// MARK: - Network Error Extension
-
-enum NetworkError: LocalizedError {
-    case unknown
-    
-    var errorDescription: String? {
-        return "Неизвестная сетевая ошибка"
     }
 }

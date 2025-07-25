@@ -2,44 +2,10 @@
 //  NetworkManager.swift
 //  vektaApp
 //
-//  Базовый менеджер для работы с сетевыми запросами
+//  Обновленный менеджер для работы с сетевыми запросами
 //
 
 import Foundation
-
-// MARK: - Network Errors
-
-enum NetworkError: LocalizedError {
-    case invalidURL
-    case noData
-    case decodingError(String)
-    case serverError(Int, String?)
-    case unauthorized
-    case rateLimited
-    case networkError(Error)
-    case invalidResponse
-    
-    var errorDescription: String? {
-        switch self {
-        case .invalidURL:
-            return "Некорректный URL адрес"
-        case .noData:
-            return "Нет данных от сервера"
-        case .decodingError(let message):
-            return "Ошибка декодирования: \(message)"
-        case .serverError(let code, let message):
-            return "Ошибка сервера \(code): \(message ?? "Неизвестная ошибка")"
-        case .unauthorized:
-            return "Необходима авторизация"
-        case .rateLimited:
-            return "Превышен лимит запросов"
-        case .networkError(let error):
-            return "Сетевая ошибка: \(error.localizedDescription)"
-        case .invalidResponse:
-            return "Некорректный ответ от сервера"
-        }
-    }
-}
 
 // MARK: - HTTP Method
 
@@ -153,9 +119,17 @@ class NetworkManager {
         // Add body for POST/PUT/PATCH
         if method != .get {
             if let body = body {
-                request.httpBody = try encoder.encode(body)
+                do {
+                    request.httpBody = try encoder.encode(body)
+                } catch {
+                    throw NetworkError.decodingError("Failed to encode request body: \(error.localizedDescription)")
+                }
             } else if let parameters = parameters {
-                request.httpBody = try JSONSerialization.data(withJSONObject: parameters)
+                do {
+                    request.httpBody = try JSONSerialization.data(withJSONObject: parameters)
+                } catch {
+                    throw NetworkError.decodingError("Failed to serialize parameters: \(error.localizedDescription)")
+                }
             }
         }
         
@@ -188,15 +162,15 @@ class NetworkManager {
             // Check status code
             switch httpResponse.statusCode {
             case 200...299:
-                // Success
+                // Success - decode response
                 do {
                     return try decoder.decode(T.self, from: data)
                 } catch {
-                    // Try to decode error message
+                    // Try to decode error message from server
                     if let errorResponse = try? decoder.decode(KaspiErrorResponse.self, from: data) {
                         throw NetworkError.serverError(httpResponse.statusCode, errorResponse.message)
                     }
-                    throw NetworkError.decodingError(error.localizedDescription)
+                    throw NetworkError.decodingError("Failed to decode response: \(error.localizedDescription)")
                 }
                 
             case 401:
@@ -205,18 +179,24 @@ class NetworkManager {
             case 429:
                 throw NetworkError.rateLimited
                 
+            case 408:
+                throw NetworkError.timeout
+                
             default:
-                // Try to decode error message
+                // Try to decode error message from server
+                var errorMessage: String?
                 if let errorResponse = try? decoder.decode(KaspiErrorResponse.self, from: data) {
-                    throw NetworkError.serverError(httpResponse.statusCode, errorResponse.message)
+                    errorMessage = errorResponse.message
                 }
-                throw NetworkError.serverError(httpResponse.statusCode, nil)
+                throw NetworkError.serverError(httpResponse.statusCode, errorMessage)
             }
             
         } catch let error as NetworkError {
+            // Re-throw NetworkError as is
             throw error
         } catch {
-            throw NetworkError.networkError(error)
+            // Convert other errors to NetworkError
+            throw NetworkError.from(error)
         }
     }
     
