@@ -372,8 +372,8 @@ extension Order {
         return "ORDER:\(orderNumber):\(sellerId):\(warehouseId)"
     }
 }
-// Добавьте это расширение в Order.swift
 
+// Добавьте это расширение в Order.swift
 extension Order {
     func updatingStatus(_ newStatus: OrderStatus) -> Order {
         return Order(

@@ -3,7 +3,12 @@
 //  vektaApp
 //
 //  Обновленная интеграция с Kaspi API с централизованной обработкой ошибок
-//
+//KaspiAPIService.swift:
+
+//Общается с Kaspi API
+//Скачивает товары
+//Отправляет SMS коды
+//Подтверждает доставки
 
 import Foundation
 import FirebaseAuth
@@ -209,6 +214,142 @@ class KaspiAPIService: ObservableObject {
                 }
             }
         }
+    }
+    // Добавьте этот метод в класс KaspiAPIService
+
+    /// Загрузить заказы из Kaspi API
+    func loadOrders() async throws -> [KaspiOrder] {
+        guard let token = apiToken else {
+            throw KaspiAPIError.tokenNotFound
+        }
+        
+        struct KaspiOrderResponse: Codable {
+            let orderId: String
+            let orderNumber: String
+            let customerInfo: KaspiCustomerInfo
+            let deliveryAddress: String
+            let totalAmount: Double
+            let status: String
+            let createdAt: Date
+            let items: [KaspiOrderItem]
+            
+            enum CodingKeys: String, CodingKey {
+                case orderId = "order_id"
+                case orderNumber = "order_number"
+                case customerInfo = "customer_info"
+                case deliveryAddress = "delivery_address"
+                case totalAmount = "total_amount"
+                case status
+                case createdAt = "created_at"
+                case items
+            }
+        }
+        
+        struct KaspiCustomerInfo: Codable {
+            let name: String
+            let phone: String
+            let email: String?
+        }
+        
+        struct KaspiOrderItem: Codable {
+            let productId: String
+            let productName: String
+            let quantity: Int
+            let price: Double
+            
+            enum CodingKeys: String, CodingKey {
+                case productId = "product_id"
+                case productName = "product_name"
+                case quantity
+                case price
+            }
+        }
+        
+        do {
+            let response: KaspiResponse<[KaspiOrderResponse]> = try await networkManager.get(
+                endpoint: "/orders",
+                parameters: [
+                    "status": "new,processing",
+                    "limit": 100
+                ],
+                apiToken: token
+            )
+            
+            guard let kaspiOrders = response.data else {
+                return []
+            }
+            
+            // Конвертируем в нашу модель
+            return kaspiOrders.map { kaspiOrder in
+                let customerInfo = CustomerInfo(
+                    name: kaspiOrder.customerInfo.name,
+                    phone: kaspiOrder.customerInfo.phone,
+                    email: kaspiOrder.customerInfo.email
+                )
+                
+                let items = kaspiOrder.items.map { item in
+                    OrderItem(
+                        productId: item.productId,
+                        productName: item.productName,
+                        quantity: item.quantity,
+                        price: item.price
+                    )
+                }
+                
+                return KaspiOrder(
+                    orderId: kaspiOrder.orderId,
+                    orderNumber: kaspiOrder.orderNumber,
+                    customerInfo: customerInfo,
+                    deliveryAddress: kaspiOrder.deliveryAddress,
+                    totalAmount: kaspiOrder.totalAmount,
+                    status: kaspiOrder.status,
+                    createdAt: kaspiOrder.createdAt,
+                    items: items
+                )
+            }
+            
+        } catch let error as NetworkError {
+            throw KaspiAPIError.from(error)
+        } catch {
+            throw KaspiAPIError.syncFailed(error.localizedDescription)
+        }
+    }
+
+    /// Создать доставку из заказа Kaspi
+    func createDeliveryFromKaspiOrder(
+        _ kaspiOrder: KaspiOrder,
+        courierId: String,
+        courierName: String
+    ) async throws -> DeliveryConfirmation {
+        
+        let delivery = DeliveryConfirmation(
+            id: UUID().uuidString,
+            orderId: kaspiOrder.orderId,
+            trackingNumber: kaspiOrder.orderNumber,
+            courierId: courierId,
+            courierName: courierName,
+            customerPhone: kaspiOrder.customerInfo.phone,
+            deliveryAddress: kaspiOrder.deliveryAddress,
+            smsCodeRequested: false,
+            smsCodeRequestedAt: nil,
+            confirmationCode: nil,
+            codeExpiresAt: nil,
+            status: .pending,
+            confirmedAt: nil,
+            confirmedBy: nil,
+            attemptCount: 0,
+            maxAttempts: 3,
+            createdAt: Date(),
+            updatedAt: Date()
+        )
+        
+        // Сохраняем доставку в Firestore
+        let db = Firestore.firestore()
+        try await db.collection("deliveries")
+            .document(delivery.id)
+            .setData(delivery.toDictionary())
+        
+        return delivery
     }
     
     func loadApiToken() async {

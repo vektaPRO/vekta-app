@@ -15,7 +15,7 @@ import FirebaseAuth
 @MainActor
 class KaspiOrdersManager: ObservableObject {
     
-    @Published var kaspiOrders: [private let kaspiService = KaspiAPIService()KaspiOrder] = []
+    @Published var kaspiOrders: [KaspiOrder] = []
     @Published var deliveries: [DeliveryConfirmation] = []
     @Published var isLoading = false
     @Published var errorMessage: String?

@@ -4,6 +4,9 @@
 //
 //  ViewModel для управления доставками курьером с реальным Kaspi API
 //
+//Управляет доставками курьера
+//Отправляет SMS коды
+//Подтверждает доставки
 
 import SwiftUI
 import FirebaseFirestore
