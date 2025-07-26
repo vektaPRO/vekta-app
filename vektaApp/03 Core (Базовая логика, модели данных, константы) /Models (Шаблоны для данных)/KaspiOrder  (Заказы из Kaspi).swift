@@ -12,7 +12,7 @@ struct KaspiOrder: Codable, Identifiable, Equatable {
     let totalAmount: Double
     let status: String
     let createdAt: Date
-    let items: [OrderItem]
+    let items: [KaspiOrderItem]
 }
 
 // MARK: - Информация о клиенте
@@ -25,7 +25,7 @@ struct CustomerInfo: Codable, Equatable {
 
 // MARK: - Товары в заказе
 
-struct OrderItem: Codable, Equatable {
+struct KaspiOrderItem: Codable, Equatable {
     let productId: String
     let productName: String
     let quantity: Int
