@@ -1,0 +1,151 @@
+ div.chat_container {
+     height: 90vh;
+	 background-color: rgb(245, 245, 245);
+ }
+
+ /* LEFT SIDE of the chat*/
+ .dialogs_container {
+     height: inherit;
+     border-right: solid white 3px;
+     padding: 0;
+ }
+
+ /* SEARCH related styles*/
+ .dialogs_container div.search_wrapper {
+
+ }
+ .search_wrapper div.search_panel {
+     padding: 12px;
+ }
+ .search_panel input.search_box {
+     margin: 0 10px 0 10px;
+ }
+
+
+ /* Dialogs list related styles */
+ .dialog_container div.dialogs_wrapper {
+
+ }
+ .dialogs_wrapper ul#dialog_list {
+     padding: 0;
+     margin: 0;
+     overflow-y: auto;
+     max-height: 80vh;
+ }
+
+ #dialog_list li.dialog_wrapper {
+     list-style-type: none;
+     display: block;
+     padding: 5px 10px 5px 5px;
+ }
+ .dialog_wrapper div.dialog_icon{
+     cursor: pointer;
+     color: #1ab394;
+ }
+ .dialog_wrapper div.dialog_photo{
+     cursor: pointer;
+     margin-right: 10px;
+ }
+ div.dialog_photo img {
+     border-radius: 50%;
+     height: 38px;
+     width: 38px;
+ }
+ .dialog_wrapper div.dialog_content {}
+ .dialog_content div.dialog_client {}
+ .dialog_content div.dialog_status {}
+
+
+
+
+
+
+
+
+
+ /* CONVERSATION container */
+
+ .conversation_container {
+     height: inherit;
+     padding: 0 0 0 0;
+ }
+
+ /* history panel (old messages)*/
+ .conversation_container div.history_panel {
+     padding: 5px 10px 5px 10px;
+ }
+ .history_panel div.history_list {
+     padding: 0;
+     margin: 0;
+     overflow-y: auto;
+     height: 80vh;
+     display: flex;
+     flex-direction: column-reverse;
+ }
+ .history_list div.history_wrapper {
+     padding: 20px 10px 20px 5px;
+     display: flex;
+     flex-direction: row-reverse;
+     margin: 20px 10px 20px 5px;
+ }
+ .history_list div.client {
+     flex-direction: row;
+ }
+ .history_wrapper .log_photo img {
+     height: 38px;
+     width: 38px;
+     border-radius: 50%;
+ }
+ .history_wrapper div.log_content {
+     background-color: white;
+     margin-right: 10px;
+     margin-left: 10px;
+     padding: 7px;
+     border-radius: 10%;
+     max-width: 60%;
+     word-wrap: break-word;
+ }
+ .history_wrapper div.log_text {}
+ .history_wrapper div.log_date {
+     text-decoration: underline;
+     color: #adadad;
+     font-size: smaller;
+ }
+
+
+
+ /* message panel */
+ .conversation_container div.message_panel {
+     border-top: solid white 3px;
+     height: 8vh;
+     position: relative;
+     bottom: 0;
+ }
+ .message_panel div.message_textarea {
+     position: absolute;
+     bottom: 0;
+     max-height: 35vh;
+     min-height: 100%;
+     overflow-y: auto;
+     overflow-x: hidden;
+     background-color: white;
+     border-bottom: solid #1ab394 1px;
+ }
+ .message_panel div.send_button {
+     height: 100%;
+     padding: 5px 15px 5px 15px;
+ }
+ .send_button img.send_icon {
+     height: 100%;
+     width: 100%;
+     cursor: pointer;
+ }
+ .message_panel div.attach_button {
+     height: 100%;
+     padding: 5px 15px 5px 15px;
+ }
+ .attach_button img.clip_icon {
+     height: 100%;
+     width: 100%;
+     background-color: #23c6c8;
+ }

@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Resend Messages</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            max-width: 400px;
+            box-sizing: border-box;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        form {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            box-sizing: border-box;
+            margin-bottom: 20px;
+        }
+
+        label {
+            font-weight: bold;
+            margin-bottom: 5px;
+            display: block;
+            color: #555;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 20px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        button {
+            width: 100%;
+            padding: 10px;
+            background-color: #28a745;
+            border: none;
+            border-radius: 4px;
+            color: #fff;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #218838;
+        }
+
+        p {
+            color: #28a745;
+            text-align: center;
+        }
+
+        @media (max-width: 600px) {
+            form {
+                padding: 15px;
+            }
+
+            h1 {
+                font-size: 1.5em;
+            }
+
+            label, input[type="text"], button {
+                font-size: 14px;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Resend message Merchants</h1>
+    <form id="kaspiForm" method="POST">
+        {% csrf_token %}
+        <label for="merchant_id">Merchant ID, example: (19)</label>
+        <input type="text" id="merchant_id" name="merchant_id" required>
+
+        <label for="order_date_str">Start date, example: (14.05.2024)</label>
+        <input type="text" id="order_date_str" name="order_date_str" required>
+
+        <label for="first_message_delivery_status">Message Status, example: (ошибка при доставке сообщения)</label>
+        <input type="text" id="first_message_delivery_status" name="first_message_delivery_status" required>
+
+        <button type="submit">send</button>
+    </form>
+
+    {% if completion_message %}
+        <p>{{ completion_message }}</p>
+    {% endif %}
+</div>
+</body>
+</html>

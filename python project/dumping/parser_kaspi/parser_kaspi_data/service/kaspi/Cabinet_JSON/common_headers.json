@@ -1,0 +1,19 @@
+{
+  "Accept": "application/json, text/plain, */*",
+  "Accept-Encoding": "gzip, deflate, br",
+  "Accept-Language": "en-GB,en;q=0.9,ru-KZ;q=0.8,ru;q=0.7,de-DE;q=0.6,de;q=0.5,ru-RU;q=0.4,en-US;q=0.3",
+  "Connection": "keep-alive",
+  "Content-Type": "application/x-www-form-urlencoded",
+  "Host": "kaspi.kz",
+  "Origin": "https://kaspi.kz",
+  "Referer": "https://kaspi.kz/mc/",
+  "Sec-Fetch-Dest": "empty",
+  "Sec-Fetch-Mode": "cors",
+  "Sec-Fetch-Site": "same-origin",
+  "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
+  "X-Src": "desk",
+  "sec-ch-ua": ",\"Not.A/Brand\";v=\"8\", \"Chromium\";v=\"114\", \"Google Chrome\";v=\"114\"",
+  "sec-ch-ua-mobile": "?0",
+  "sec-ch-ua-platform": "Linux",
+  "Cookie": ""
+}

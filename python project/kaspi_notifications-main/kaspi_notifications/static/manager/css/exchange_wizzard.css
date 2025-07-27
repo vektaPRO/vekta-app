@@ -1,0 +1,121 @@
+
+.tt-dataset {
+    width: 100%;
+}
+
+.tt-dataset__inner {
+    padding: 10px;
+    display: block;
+    width: 100%;
+}
+
+.tt-dataset__inner:hover{
+    background-color: lightgrey;
+    cursor: pointer;
+}
+
+#customChangeModal .d-none, #flight_refund .d-none {
+    display: none;
+}
+#customChangeModal .trashIcon{
+    font-size: 15px;
+    cursor: pointer;
+    margin: 0 5px;
+}
+.show-tooltip:hover + .tooltips{
+    opacity: 1;
+    display: unset;
+}
+.tooltips {
+    position: absolute;
+    bottom: 25px;
+    display: none;
+    opacity: 0;
+    z-index: 1;
+    transition: 0.3s all;
+    background-color: white;
+    border: 1px solid lightgrey;
+    box-shadow: 3px 3px 3px rgba(0, 0, 0, .3);
+    padding: 10px;
+}
+.tooltips-root {
+    position: relative;
+}
+#customChangeModal #flightPassengersExample table tr td,
+#customChangeModal .segmentBody tr td {
+    width: 200px;
+}
+#customChangeModal #flightPassengersExample table tr td:last-child,
+#customChangeModal .segmentBody tr td:last-child{
+    width: 50px;
+}
+@keyframes animationWithOpacity {
+    0% {
+        background-color: lightgrey;
+    }
+    100% {
+        opacity: 1;
+        background-color: white;
+    }
+}
+#fillForm table td,
+#passengersTbodyContainer td {
+    vertical-align: middle;
+}
+.segmentBody td div label {
+    cursor: pointer;
+}
+.lds-ring {
+    display: inline-block;
+    position: relative;
+    width: 80px;
+    height: 80px;
+}
+.lds-ring div {
+    box-sizing: border-box;
+    display: block;
+    position: absolute;
+    width: 24px;
+    height: 24px;
+    margin: 8px;
+    border: 4px solid #1ab394;
+    border-radius: 50%;
+    animation: lds-ring 1.2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+    border-color: #1ab394 transparent transparent transparent;
+}
+.lds-ring div:nth-child(1) {
+    animation-delay: -0.45s;
+}
+.lds-ring div:nth-child(2) {
+    animation-delay: -0.3s;
+}
+.lds-ring div:nth-child(3) {
+    animation-delay: -0.15s;
+}
+@keyframes lds-ring {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+}
+.alert-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 1003;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.6);
+}
+.alert-popup {
+    width: 30%;
+    background-color: white;
+    left: 50%;
+    top: 50%;
+    display: inline-block;
+    position: absolute;
+    padding: 16px;
+    transform: translate(-50%, -50%);
+}

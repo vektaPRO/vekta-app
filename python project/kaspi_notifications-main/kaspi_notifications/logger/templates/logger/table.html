@@ -1,0 +1,102 @@
+{% extends 'logger/base.html' %}
+{% load admin_list %}
+
+{% block javascript %}
+    <script>
+    function get_query_dict() {
+        var query_dict = {};
+        var param_pairs = location.search.substring(1).split('&');
+        $.each(param_pairs, function(i, elem){
+            if (elem.indexOf('=') == -1)
+                return;
+            var pair = elem.split('=');
+            query_dict[pair[0]] = pair[1];
+        });
+        return query_dict;
+    }
+
+    function construct_url_query(dict) {
+        var pairs = [];
+        $.each(Object.keys(dict), function(i, elem) {
+            pairs.push(elem + '=' + dict[elem]);
+        });
+        return pairs.join('&');
+    }
+
+    $(document).on('click', '.js-filter', function(){
+        var query_dict = get_query_dict();
+        query_dict[$(this).data('key')] = $(this).data('value');
+        if (!$(this).data('value'))
+            delete query_dict[$(this).data('key')];
+        location.search = construct_url_query(query_dict);
+        return false;
+    });
+    </script>
+{% endblock %}
+
+{% block content %}
+    <div>
+        <a href="#" class="js-filter btn btn-sm" data-key="level" data-value="">Все</a>
+        <a href="#" class="js-filter btn btn-sm btn-info" data-key="level" data-value="INFO">Обычные</a>
+        <a href="#" class="js-filter btn btn-sm btn-warning" data-key="level" data-value="WARNING">Предупреждения</a>
+        <a href="#" class="js-filter btn btn-sm btn-danger" data-key="level" data-value="ERROR">Ошибки</a>
+        {% if search_query %}
+            <a href="#" class="js-filter btn btn-sm btn btn-default" data-key="level" data-value="DOWNLOAD">Download All {{ object_count }}</a>
+        {% endif %}
+    </div>
+    <br />
+    <table class="table table-bordered table-hover">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Время</th>
+                <th>Метод</th>
+                <th>UID</th>
+                <th>Conversation ID</th>
+                <th>response code</th>
+            </tr>
+        </thead>
+        {% for log in object_list %}
+            <tr class="log {% if log.level == 'WARNING' %}warning{% elif log.level == 'ERROR' %}danger{% endif %}">
+                <td><a href="{% url 'logger:cabinetlog_view' pk=log.pk %}?db={{ log.get_db_name }}">{{ log.pk }}</a></td>
+                <td>{{ log.time|date:"c" }}</td>
+                <td>{{ log.method }}</td>
+                <td>{{ log.uid|default:'---' }}</td>
+                <td>{{ log.conversation_id|default:'---' }}</td>
+                <td>{{ log.response_code }}</td>
+            </tr>
+        {% endfor %}
+    </table>
+
+    {% if is_paginated %}
+        <nav>
+            <ul class="pagination">
+                {% if page_obj.has_previous %}
+                    <li><a href="?page={{page_obj.previous_page_number}}{{ url_params }}">&laquo;</a></li>
+                    {% if page_obj.previous_page_number != 1 %}
+                        <li><a href="?page=1{{ url_params }}">1</a></li>
+                    {% endif %}
+                    {% if page_obj.number > 2 %}
+                        <li><a>&nbsp;...&nbsp;</a></li>
+                    {% endif %}
+                    <li><a href="?page={{ page_obj.previous_page_number }}{{ url_params }}">{{ page_obj.previous_page_number }}</a></li>
+                {% endif %}
+
+                <li><a href="?page={{ page_obj.number }}{{ url_params }}"><b>{{ page_obj.number }}</b></a></li>
+
+                {% if page_obj.has_next %}
+                    {% if page_obj.next_page_number != page_obj.paginator.num_pages %}
+                        <li><a href="?page={{ page_obj.next_page_number }}{{ url_params }}">{{ page_obj.next_page_number }}</a></li>
+                    {% endif %}
+                    {% if page_obj.next_page_number < page_obj.paginator.num_pages|add:"-1" %}
+                        <li><a>&nbsp;...&nbsp;</a></li>
+                    {% endif %}
+                    {% if page_obj.number != page_obj.paginator.num_pages %}
+                        <li><a href="?page={{ page_obj.paginator.num_pages }}{{ url_params }}">{{ page_obj.paginator.num_pages }}</a></li>
+                    {% endif %}
+                    <li><a href="?page={{ page_obj.next_page_number }}{{ url_params }}">&raquo;</a></li>
+                {% endif %}
+            </ul>
+        </nav>
+    {% endif %}
+{% endblock %}

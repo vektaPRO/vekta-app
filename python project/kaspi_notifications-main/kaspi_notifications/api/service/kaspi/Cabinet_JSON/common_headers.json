@@ -1,0 +1,8 @@
+{
+    "Accept": "application/vnd.api+json",
+    "X-Auth-Token": "{{ kaspi_token }}",
+    "X-Merchant-Uid": "{{ kaspi_shop_uid }}",
+    "User-Agent": "KaspiBot",
+    "Cookie": ""
+
+}

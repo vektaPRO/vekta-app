@@ -1,0 +1,81 @@
+#imageListId {
+    margin: 0;
+    padding: 0;
+    list-style-type: none;
+}
+
+#imageListId div {
+    display: inline-block;
+}
+#imageListId .card-action {
+    display: none;
+}
+#newImageListId div {
+    padding: 0;
+    display: inline-block;
+}
+
+#newImageListId .card-images {
+    width: 100%;
+    margin: 0;
+}
+
+#newImageListId .card-description {
+    display: none;
+}
+
+.listitemClass {
+    width: 150px;
+    background-color: #ffffff;
+    border-radius: 5px;
+    border: 1px solid lightgray;
+    box-shadow: 10px 5px 5px whitesmoke;
+    margin: 3px;
+}
+
+.card-image {
+    padding: 0;
+    margin: 0;
+    width: 100%;
+}
+
+.card-image img {
+    width: 100%;
+}
+
+.card-description {
+    text-align: center;
+}
+
+.card-button {
+    padding: 3px;
+}
+
+.height {
+    height: 10px;
+}
+
+.nav-tabs {
+    margin-bottom: 20px;
+}
+
+#empty_form {
+    /*display: none;*/
+}
+
+.provider_content {
+    background-color: #f3f3f4;
+    padding-top: 10px;
+    height: 100%;
+    min-height: 800px;
+}
+
+.info_content {
+    width: 100%;
+}
+
+.image-add-button{
+    padding: 2px 4px;
+    margin-top: 5px;
+    font-size: 12px;
+}

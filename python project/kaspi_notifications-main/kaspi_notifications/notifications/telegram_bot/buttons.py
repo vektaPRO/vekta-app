@@ -1,0 +1,5 @@
+BUTTON_HELP = 'Инструкция'
+BUTTON_REGISTER = 'Хочу подключить'
+BUTTON_KASPI = 'Оплата через Kaspi'
+BUTTON_ROBOKASSA = 'Оплата через Robokassa'
+BUTTON_QR_CODE_IS_SCANNED = 'Готово'

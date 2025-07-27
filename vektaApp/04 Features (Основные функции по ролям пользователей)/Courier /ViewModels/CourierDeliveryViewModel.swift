@@ -272,6 +272,7 @@ class CourierDeliveryViewModel: ObservableObject {
     }
     
     /// Подтвердить доставку с помощью кода через Kaspi API
+    /// Подтвердить доставку с помощью кода через Kaspi API
     func confirmDeliveryWithCode(_ code: String, for delivery: DeliveryConfirmation) async {
         guard !code.isEmpty else {
             errorMessage = "Введите код подтверждения"
@@ -287,6 +288,9 @@ class CourierDeliveryViewModel: ObservableObject {
         
         isVerifyingCode = true
         errorMessage = nil
+        
+        // Объявляем updated вне блока do-catch
+        var updated = delivery.incrementAttempts()
         
         do {
             // Проверяем количество попыток
@@ -306,9 +310,6 @@ class CourierDeliveryViewModel: ObservableObject {
                     userInfo: [NSLocalizedDescriptionKey: "Код истек. Запросите новый код."]
                 )
             }
-            
-            // Увеличиваем счетчик попыток
-            var updated = delivery.incrementAttempts()
             
             // Проверяем код через реальный Kaspi API
             let isValid = try await kaspiService.confirmDelivery(
@@ -364,6 +365,8 @@ class CourierDeliveryViewModel: ObservableObject {
                 errorMessage = "\(error.localizedDescription). Осталось попыток: \(updated.remainingAttempts)"
             }
         } catch {
+            // Обновляем доставку с новым количеством попыток при любой ошибке
+            try? await updateDeliveryInFirestore(updated)
             errorMessage = error.localizedDescription
         }
         
@@ -457,13 +460,14 @@ class CourierDeliveryViewModel: ObservableObject {
     }
     
     /// Уведомить продавца
+    /// Уведомить продавца
     private func notifySeller(orderId: String, message: String) async throws {
         // Получаем информацию о заказе
         let orderDoc = try await db.collection("orders").document(orderId).getDocument()
         guard let sellerId = orderDoc.data()?["sellerId"] as? String else { return }
         
-        // Создаем уведомление
-        let notification = [
+        // Создаем уведомление с явным указанием типа
+        let notification: [String: Any] = [
             "userId": sellerId,
             "type": "delivery_update",
             "title": "Обновление доставки",

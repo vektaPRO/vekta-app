@@ -1,0 +1,128 @@
+name: kaspi_parser_dev
+
+on:
+  push:
+    branches:
+      - dev
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: "3.11"
+
+    - name: Install dependencies
+      run: | 
+        python -m pip install --upgrade pip 
+        pip install -r requirements.txt
+
+  build_backend:
+    name: Push Docker image to Docker Hub
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v2
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      - name: Login to Docker
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Push to Docker Hub
+        uses: docker/build-push-action@v3
+        with:
+          push: true
+          context: .
+          platforms: linux/amd64,linux/arm64
+          tags: inarash/kaspi_parser_dev
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build_backend
+    if:
+      contains('
+        refs/heads/main
+        refs/heads/master
+      ', github.ref)
+    steps:
+      - name: executing remote ssh commands to deploy
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.DEV_HOST }}
+          username: ${{ secrets.DEV_USER }}
+          password: ${{ secrets.DEV_PASSWORD }}
+
+
+          script: |
+            cd /projects/kaspi_parser_dev
+            touch logs.txt
+            echo ${{ secrets.DOCKER_PASSWORD }} | sudo docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
+            sudo docker pull inarash/kaspi_parser_dev
+            sudo docker-compose stop
+            sudo docker-compose rm -f celery_worker
+            sudo docker-compose rm -f celery_beat
+            mkdir -p celerybeat-schedule
+            touch parser_kaspi/logs.txt
+            rm .env
+            touch .env
+            echo DB_NAME=${{ secrets.DEV_DB_NAME }} >> .env
+            echo DB_ENGINE=${{ secrets.DB_ENGINE }} >> .env
+            echo POSTGRES_USER=${{ secrets.DEV_POSTGRES_USER }} >> .env
+            echo POSTGRES_PASSWORD=${{ secrets.DEV_POSTGRES_PASSWORD }} >> .env
+            echo DB_HOST=${{ secrets.DB_HOST }} >> .env
+            echo DB_PORT=${{ secrets.DB_PORT }} >> .env
+            echo RABBITMQ_USERNAME=${{ secrets.RABBITMQ_USERNAME }} >> .env
+            echo RABBITMQ_PASSWORD=${{ secrets.RABBITMQ_PASSWORD }} >> .env
+            echo RABBITMQ_HOST=${{ secrets.RABBITMQ_HOST }} >> .env
+            echo SECRET_KEY=${{ secrets.SECRET_KEY }} >> .env
+            echo KASPI_TOKEN=${{ secrets.KASPI_TOKEN }} >> .env
+            echo TELEGRAM_TO=${{ secrets.TELEGRAM_TO }} >> .env
+            echo TELEGRAM_TOKEN_WORKFLOW=${{ secrets.TELEGRAM_TOKEN_WORKFLOW }} >> .env
+            echo CHAT_ID=${{ secrets.CHAT_ID }} >> .env
+            echo API_TOKEN=${{ secrets.API_TOKEN }} >> .env
+            echo ASOCKS_API_KEY=${{ secrets.ASOCKS_API_KEY }} >> .env
+            echo DATAIMPULSE_LOGIN=${{ secrets.DATAIMPULSE_LOGIN }} >> .env
+            echo DATAIMPULSE_PASSWORD=${{ secrets.DATAIMPULSE_PASSWORD }} >> .env
+            echo PROXIES_QUANTITY=${{ secrets.PROXIES_QUANTITY }} >> .env
+            echo PROXIES_COUNTRIES=${{ secrets.PROXIES_COUNTRIES }} >> .env
+            echo PROVIDER_ON=${{ secrets.PROVIDER_ON }} >> .env
+            echo HASH=${{ secrets.HASH }} >> .env
+            echo DOMAIN_NAME=${{ secrets.DEV_DOMAIN_NAME }} >> .env
+            echo GREEN_API_TOKEN=${{ secrets.GREEN_API_TOKEN }} >> .env
+            echo GREEN_API_INSTANCE=${{ secrets.GREEN_API_INSTANCE }} >> .env
+            echo MANAGER_PHONE=${{ secrets.MANAGER_PHONE }} >> .env
+            echo IROCKET_TEAM_GROUP_ID=${{ secrets.IROCKET_TEAM_GROUP_ID }} >> .env
+            echo REDIS_URL=${{ secrets.REDIS_URL }} >> .env
+            echo WHATSAPP_CREATE_URL=${{ secrets.WHATSAPP_CREATE_URL }} >> .env
+            echo WHATSAPP_VERIFY_URL=${{ secrets.WHATSAPP_VERIFY_URL }} >> .env
+            echo WHATSAPP_AUTH_TOKEN=${{ secrets.WHATSAPP_AUTH_TOKEN }} >> .env
+            echo RASPBERRY_ON_PROD=${{ secrets.RASPBERRY_ON_PROD }} >> .env
+            echo PROXYRACK_LOGIN=${{ secrets.PROXYRACK_LOGIN }} >> .env
+            echo PROXYRACK_PASSWORD=${{ secrets.PROXYRACK_PASSWORD }} >> .env
+            echo PS_EMAIL_USERNAME=${{ secrets.PS_EMAIL_USERNAME }} >> .env
+            echo PS_EMAIL_PASSWORD=${{ secrets.PS_EMAIL_PASSWORD }} >> .env
+            echo IMAP_SERVER=${{ secrets.IMAP_SERVER }} >> .env
+            echo REDIS_HOST=${{ secrets.REDIS_HOST }} >> .env
+            echo REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }} >> .env
+
+            sudo docker compose up -d
+
+  send_message:
+    runs-on: ubuntu-latest
+    needs: deploy
+    steps:
+    - name: send message
+      uses: appleboy/telegram-action@master
+      with:
+        to: ${{ secrets.TELEGRAM_TO }}
+        token: ${{ secrets.TELEGRAM_TOKEN_WORKFLOW }}
+        message: ${{ github.workflow }} успешно выполнен!

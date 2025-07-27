@@ -1,0 +1,12 @@
+.gitignore
+.github
+artifacts
+output
+venv
+.env
+logs.txt
+nginx.conf
+__pycache__
+.idea
+.git
+docker-compose.yaml

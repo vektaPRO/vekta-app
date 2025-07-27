@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Whatsapp QR Code</title>
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'css_template/qr_code_style.css' %}">
+</head>
+<body>
+    <div class="container">
+        <h1>Whatsapp QR code</h1>
+        {% if message == "Instance already logged" %}
+            <h4>QR код, уже отсканирован</h4>
+        {% elif message == "error" %}
+            <h4>QR-код недоступен, напишите менеджеру</h4>
+        {% elif message != "Instance already logged" %}
+            <img src="data:image/png;base64,{{ message }}" alt="QR Code">
+        {% else %}
+            <p>QR-код недоступен, напишите менеджеру</p>
+        {% endif %}
+
+        {% load static %}
+        <h5>Инструкция</h5>
+        <p>Нажмите на три точки в правом верхнем углу WhatsApp, затем выберите "Связанные устройства".</p>
+        <img src="{% static 'img_assets/go_to_link.jpeg' %}" alt="linked devices" class="instruction-img">
+        <p>После этого нажмите "Связать устройство" и сканируйте QR-код.</p>
+        <h5>Если у вас нет второго телефона для сканирования QR-кода, сделайте скриншот QR-кода и отправьте его себе.</h5>
+        <img src="{% static 'img_assets/for_me.jpeg' %}" alt="for mee" class="instruction-img">
+        <p>При отправке скриншота QR-кода WhatsApp предоставит вам кнопку для добавления устройства. Нажмите на эту кнопку.</p>
+        <img src="{% static 'img_assets/dalee_button.jpeg' %}" alt="dalee" class="instruction-img">
+        <p>Чтобы проверить, отсканирован ли QR-код, вам нужно обновить страницу или снова открыть ссылку. Вместо QR-кода вы увидите надпись 'QR код уже отсканирован'. Вот и всё, спасибо!</p>
+
+    </div>
+</body>
+
+</html>

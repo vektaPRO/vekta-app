@@ -1,0 +1,63 @@
+filebeat.inputs:
+- type: log
+  enabled: true
+  paths:
+    - '/var/log/irocket/*.log'
+
+output.elasticsearch:
+  hosts: ["elasticsearch:9200"]
+  username: elastic
+  password: "***"
+
+json.keys_under_root: true
+json.overwrite_keys: false
+json.add_error_key: true
+
+multiline.pattern: '^\{'
+multiline.negate: true
+multiline.match: after
+
+processors:
+  - decode_json_fields:
+      fields: [ "message" ]
+      process_array: true
+      max_depth: 2
+      target: ""
+      overwrite_keys: true
+      add_error_key: true
+
+  - timestamp:
+      field: "timestamp"
+      ignore_failure: false
+      ignore_missing: false
+      layouts:
+        - '2006-01-02T15:04:05.99-0700'
+        - '2006-01-02T15:04:05.999-0700'
+        - '2006-01-02T15:04:05.9999-0700'
+        - '2006-01-02T15:04:05.99999-0700'
+        - '2006-01-02T15:04:05.999999-0700'
+        - '2006-01-02T15:04:05.999999999-0700'
+        - '2006-01-02T15:04:05.999999999-07:00'
+        - "2006-01-02T15:04:05.999999999Z07:00"
+      test:
+        - '2024-08-20T11:21:21.951365+0500'
+        - '2024-08-20T12:35:01.703347+0500'
+  - drop_fields:
+      fields: [
+        "timestamp",
+        "message",
+        "agent",
+        "ecs.version",
+        "log.file.path",
+        "log.offset",
+        "_type",
+        "_index",
+        "input.type",
+        "_score",
+        "_id",
+        "function",
+        "line_number",
+        "path",
+        "module",
+      ]
+      ignore_missing: true

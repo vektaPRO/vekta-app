@@ -1,0 +1,10 @@
+# created by virtualenv automatically
+/venv/
+/.env
+/parser_kaspi/db.sqlite3
+/parser_kaspi/celerybeat-schedule
+/.idea/
+/parser_kaspi/output.xml
+/output/prices_to_upload_16.xml
+*logs.txt*
+*credentials*

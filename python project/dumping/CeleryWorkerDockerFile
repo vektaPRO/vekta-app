@@ -1,0 +1,6 @@
+FROM python:3.11
+WORKDIR /code
+COPY requirements.txt .
+RUN pip3 install -r requirements.txt && mkdir ../logs
+COPY . .
+CMD export DJANGO_SETTINGS_MODULE="parser_kaspi.settings.local"; cd parser_kaspi; celery -A parser_kaspi worker -Q default --loglevel=DEBUG

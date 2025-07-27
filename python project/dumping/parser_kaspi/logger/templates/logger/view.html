@@ -1,0 +1,106 @@
+{% extends 'logger/base.html' %}
+
+{% block css %}
+    <style>
+    pre.error {
+        background-color: #F2DEDE;
+        border-color: #ebccd1;
+        color: #a94442;
+    }
+    pre.warning {
+        color: #8a6d3b;
+        background-color: #fcf8e3;
+        border-color: #faebcc;
+    }
+    .display-none {
+        display: none;
+    }
+    .log {
+        margin-top: 10px;
+        padding: 0 20px;
+    }
+    .log.current {
+        padding: 20px;
+        background-color: #d9edf7;
+    }
+    </style>
+{% endblock %}
+
+{% block javascript %}
+    <script>
+    $(document).on('click', '.js-minimize', function(){
+        $(this).removeClass('js-minimize').addClass('js-maximize')
+                .text('Развернуть');
+        $(this).closest('div.log').find('pre.short-info').slideDown();
+        $(this).closest('div.log').find('pre.full-info').slideUp();
+
+        return false;
+    });
+    $(document).on('click', '.js-maximize', function(){
+        $(this).removeClass('js-maximize').addClass('js-minimize')
+                .text('Свернуть');
+        $(this).closest('div.log').find('pre.short-info').slideUp();
+        $(this).closest('div.log').find('pre.full-info').slideDown();
+
+        return false;
+    });
+
+        function get_query_dict() {
+        var query_dict = {};
+        var param_pairs = location.search.substring(1).split('&');
+        $.each(param_pairs, function(i, elem){
+            if (elem.indexOf('=') == -1)
+                return;
+            var pair = elem.split('=');
+            query_dict[pair[0]] = pair[1];
+        });
+        return query_dict;
+    }
+
+    function construct_url_query(dict) {
+        var pairs = [];
+        $.each(Object.keys(dict), function(i, elem) {
+            pairs.push(elem + '=' + dict[elem]);
+        });
+        return pairs.join('&');
+    }
+
+    $(document).on('click', '.js-download', function(){
+        var query_dict = get_query_dict();
+        query_dict[$(this).data('key')] = $(this).data('value');
+        if (!$(this).data('value'))
+            delete query_dict[$(this).data('key')];
+        location.search = construct_url_query(query_dict);
+        return false;
+    });
+    </script>
+{% endblock %}
+
+{% block current_breadcrumb %}{% if logs.0.uid %}UID: {{ logs.0.uid }}{% else %}Log #{{ pk }}{% endif %}{% endblock %}
+
+{% block content %}
+    {% if logs.0.uid %}<h2>UID: {{ logs.0.uid }} &nbsp;
+        &nbsp; <a class="js-download btn btn-sm btn btn-default" data-key="level" data-value="all" id="download">Download All {{ logs_count }}</a></h2><br />
+    {% endif %}
+    {% for log in logs %}
+        <div class="log {% if log.pk == current_log.pk %}current{% endif %}">
+            <div>
+                <span class="label label-success">{{ log.method }}</span>
+                <span class="label label-success">{{ log.time|date:"c" }}</span>
+                <a href="#" class="btn btn-xs btn-warning js-maximize">Развернуть</a>
+                <span class="label label-info">{{ log.conversation_id }}</span>
+                <span class="label label-info">{{ log.response_code }}</span>
+                <span class="label label-info">{{ log.booking_reference }}</span>
+                <a class="js-download btn btn-xs btn-default" data-key="level" data-value="{{log.pk}}">Download</a>
+            </div>
+
+            <pre class="{{ log.level.lower }} short-info">{{ log.pretty_message|truncatechars:100 }}</pre>
+<pre class="{{ log.level.lower }} display-none full-info">
+URL: {{ log.url }}
+COOKIE: {{ log.cabinet_cookie }}
+
+{{ log.pretty_message }}
+</pre>
+        </div>
+    {% endfor %}
+{% endblock %}

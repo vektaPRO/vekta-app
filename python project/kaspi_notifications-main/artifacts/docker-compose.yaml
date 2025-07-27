@@ -1,0 +1,102 @@
+volumes:
+  postgres_data:
+  static_value:
+
+services:
+
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    env_file:
+      - ./.env
+    ports:
+      - 5432:5432
+    environment:
+      DATABASE_URL: "postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@db:5432/$DB_NAME"
+      AUTH_TYPE: 'scram-sha-256'
+    depends_on:
+      - db
+
+  db:
+    image: postgres:16.4
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    env_file:
+      - ./.env
+
+  rabbitmq:
+    image: 'bitnami/rabbitmq:latest'
+    environment:
+      - RABBITMQ_MANAGEMENT_ALLOW_WEB_ACCESS=True
+    # add path to advanced config file to remove consumer_timeout value
+    volumes:
+      - ./rabbitmq/advanced.config:/bitnami/rabbitmq/conf/advanced.config
+      - ./rabbitmq/enabled_plugins:/bitnami/rabbitmq/conf/enabled_plugins
+    ports:
+      - 5672:5672
+
+
+  web:
+    image: inarash/kaspi_notifications
+    restart: always
+    depends_on:
+      - pgbouncer
+      - rabbitmq
+    env_file:
+      - ./.env
+    environment:
+      - DJANGO_SETTINGS_MODULE=kaspi_notifications.settings.release
+    volumes:
+      - static_value:/code/kaspi_notifications/staticfiles/
+      - ./logs.txt:/code/logs.txt
+      - ./logs:/code/logs
+
+  nginx:
+    image: nginx:1.23.1-alpine
+    ports:
+      - 80:80
+      - 443:443
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf
+      - static_value:/var/html/static/
+      - ./logs.txt:/code/logs.txt
+      - ./logs:/code/logs
+      - ./certbot/www/:/var/www/certbot/:ro
+    depends_on:
+      - web
+
+  certbot:
+    image: certbot/certbot:latest
+    volumes:
+      - ./certbot/www/:/var/www/certbot/:rw
+    depends_on:
+      - nginx
+
+  celery_worker:
+    image: inarash/kaspi_notifications
+    restart: always
+    depends_on:
+      - rabbitmq
+    volumes:
+      - ./logs.txt:/code/logs.txt
+      - ./logs:/code/logs
+    env_file:
+      - ./.env
+    command: bash -c 'export DJANGO_SETTINGS_MODULE="kaspi_notifications.settings.release"; cd kaspi_notifications; celery -A kaspi_notifications worker --loglevel=INFO --autoscale=120,60'
+
+
+  celery_beat:
+    image: inarash/kaspi_notifications
+    restart: always
+    depends_on:
+      - rabbitmq
+    volumes:
+      - ./logs.txt:/code/logs.txt
+      - ./celerybeat-schedule/:/code/celerybeat
+      - ./logs:/code/logs
+    env_file:
+      - ./.env
+    command: bash -c 'export DJANGO_SETTINGS_MODULE="kaspi_notifications.settings.release"; cd kaspi_notifications; celery -A kaspi_notifications beat --loglevel=INFO'
