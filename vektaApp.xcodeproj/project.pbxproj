@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		4E06EF612E38D2E9007B3F11 /* KaspiOrdersSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E06EF602E38D2E9007B3F11 /* KaspiOrdersSync.swift */; };
+		4E06EF632E38D309007B3F11 /* KaspiSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E06EF622E38D309007B3F11 /* KaspiSettingsView.swift */; };
 		4E454DE72E0E3DE900591B30 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 4E454DE62E0E3DE900591B30 /* FirebaseAuth */; };
 		4E454DE92E0E3DE900591B30 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 4E454DE82E0E3DE900591B30 /* FirebaseFirestore */; };
 		4EE757242E1310DB00BD34CE /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 4EE757232E1310DB00BD34CE /* FirebaseCore */; };
@@ -30,6 +32,8 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		4E06EF602E38D2E9007B3F11 /* KaspiOrdersSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KaspiOrdersSync.swift; sourceTree = "<group>"; };
+		4E06EF622E38D309007B3F11 /* KaspiSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KaspiSettingsView.swift; sourceTree = "<group>"; };
 		4E454DAF2E0E3B8000591B30 /* vektaApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = vektaApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		4E454DBC2E0E3B8100591B30 /* vektaAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = vektaAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		4E454DC62E0E3B8100591B30 /* vektaAppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = vektaAppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -84,6 +88,8 @@
 		4E454DA62E0E3B8000591B30 = {
 			isa = PBXGroup;
 			children = (
+				4E06EF622E38D309007B3F11 /* KaspiSettingsView.swift */,
+				4E06EF602E38D2E9007B3F11 /* KaspiOrdersSync.swift */,
 				4E454DB12E0E3B8000591B30 /* vektaApp */,
 				4E454DBF2E0E3B8100591B30 /* vektaAppTests */,
 				4E454DC92E0E3B8100591B30 /* vektaAppUITests */,
@@ -251,6 +257,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				4E06EF612E38D2E9007B3F11 /* KaspiOrdersSync.swift in Sources */,
+				4E06EF632E38D309007B3F11 /* KaspiSettingsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
