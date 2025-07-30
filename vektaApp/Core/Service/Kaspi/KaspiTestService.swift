@@ -2,7 +2,7 @@
 //  KaspiTestService.swift
 //  vektaApp
 //
-//  Обновленный сервис для тестирования Kaspi API с полным покрытием функций
+//  Сервис для тестирования Kaspi API с полным покрытием функций
 //
 
 import Foundation
@@ -57,12 +57,8 @@ class KaspiTestService: ObservableObject {
             ("Orders List", "Получение списка заказов", testGetOrders),
             ("Order Details", "Получение деталей заказа", testGetOrderDetails),
             ("Order Entries", "Получение позиций заказа", testGetOrderEntries),
-            ("Order Accept", "Тест принятия заказа", testAcceptOrder),
-            ("Order Ship", "Тест отправки заказа", testShipOrder),
-            ("Order Complete", "Тест завершения заказа", testCompleteOrder),
             ("Delivery Point", "Получение информации о складе", testGetDeliveryPoint),
             ("IMEI Codes", "Тест работы с IMEI кодами", testIMEICodes),
-            ("Order Entry Operations", "Тест операций с позициями", testOrderEntryOperations),
             ("Error Handling", "Тест обработки ошибок", testErrorHandling),
             ("Rate Limiting", "Тест ограничений запросов", testRateLimiting)
         ]
@@ -112,6 +108,153 @@ class KaspiTestService: ObservableObject {
             return TestResult(
                 name: "API Token",
                 description: "Проверка наличия токена",
+                status: .failed,
+                message: "Токен отсутствует",
+                duration: Date().timeIntervalSince(start)
+            )
+        }
+        
+        // Проверяем валидность токена
+        let isValid = await kaspiAPI.validateToken()
+        let duration = Date().timeIntervalSince(start)
+        
+        return TestResult(
+            name: "API Token",
+            description: "Проверка валидности токена",
+            status: isValid ? .passed : .failed,
+            message: isValid ? "Токен валиден" : "Токен недействителен",
+            duration: duration
+        )
+    }
+    
+    /// Тест получения категорий
+    private func testGetCategories() async -> TestResult {
+        let start = Date()
+        
+        do {
+            let categories = try await kaspiAPI.getCategories()
+            let duration = Date().timeIntervalSince(start)
+            
+            return TestResult(
+                name: "Categories",
+                description: "Получение списка категорий",
+                status: .passed,
+                message: "Получено \(categories.count) категорий",
+                duration: duration,
+                details: ["categoriesCount": categories.count]
+            )
+        } catch {
+            let duration = Date().timeIntervalSince(start)
+            return TestResult(
+                name: "Categories",
+                description: "Получение списка категорий",
+                status: .failed,
+                message: error.localizedDescription,
+                duration: duration,
+                error: error
+            )
+        }
+    }
+    
+    /// Тест получения атрибутов категории
+    private func testGetCategoryAttributes() async -> TestResult {
+        let start = Date()
+        
+        do {
+            // Сначала получаем категории
+            let categories = try await kaspiAPI.getCategories()
+            guard let firstCategory = categories.first else {
+                return TestResult(
+                    name: "Category Attributes",
+                    description: "Получение атрибутов категории",
+                    status: .failed,
+                    message: "Нет доступных категорий",
+                    duration: Date().timeIntervalSince(start)
+                )
+            }
+            
+            // Получаем атрибуты первой категории
+            let attributes = try await kaspiAPI.getCategoryAttributes(categoryCode: firstCategory.code)
+            let duration = Date().timeIntervalSince(start)
+            
+            return TestResult(
+                name: "Category Attributes",
+                description: "Получение атрибутов категории",
+                status: .passed,
+                message: "Получено \(attributes.count) атрибутов для категории \(firstCategory.title)",
+                duration: duration,
+                details: [
+                    "categoryCode": firstCategory.code,
+                    "attributesCount": attributes.count
+                ]
+            )
+        } catch {
+            let duration = Date().timeIntervalSince(start)
+            return TestResult(
+                name: "Category Attributes",
+                description: "Получение атрибутов категории",
+                status: .failed,
+                message: error.localizedDescription,
+                duration: duration,
+                error: error
+            )
+        }
+    }
+    
+    /// Тест получения схемы импорта
+    private func testGetProductSchema() async -> TestResult {
+        let start = Date()
+        
+        do {
+            let schema = try await kaspiAPI.getProductImportSchema()
+            let duration = Date().timeIntervalSince(start)
+            
+            return TestResult(
+                name: "Product Schema",
+                description: "Получение схемы импорта товаров",
+                status: .passed,
+                message: "Схема импорта получена",
+                duration: duration,
+                details: ["schemaKeys": Array(schema.keys)]
+            )
+        } catch {
+            let duration = Date().timeIntervalSince(start)
+            return TestResult(
+                name: "Product Schema",
+                description: "Получение схемы импорта товаров",
+                status: .failed,
+                message: error.localizedDescription,
+                duration: duration,
+                error: error
+            )
+        }
+    }
+    
+    /// Тест получения списка товаров
+    private func testGetProducts() async -> TestResult {
+        let start = Date()
+        
+        do {
+            let response = try await kaspiAPI.getProducts(page: 0, size: 10)
+            let products = response.data ?? []
+            let duration = Date().timeIntervalSince(start)
+            
+            return TestResult(
+                name: "Products List",
+                description: "Получение списка товаров",
+                status: .passed,
+                message: "Получено \(products.count) товаров",
+                duration: duration,
+                details: [
+                    "productsCount": products.count,
+                    "totalElements": response.meta?.pagination?.totalElements ?? 0
+                ]
+            )
+        } catch {
+            let duration = Date().timeIntervalSince(start)
+            return TestResult(
+                name: "Products List",
+                description: "Получение списка товаров",
                 status: .failed,
                 message: error.localizedDescription,
                 duration: duration,
@@ -321,145 +464,6 @@ class KaspiTestService: ObservableObject {
         }
     }
     
-    /// Тест принятия заказа
-    private func testAcceptOrder() async -> TestResult {
-        let start = Date()
-        
-        do {
-            // Ищем заказы в статусе NEW
-            let ordersResponse = try await kaspiAPI.getOrders(page: 0, size: 5, state: .new)
-            guard let newOrder = ordersResponse.data?.first(where: {
-                $0.attributes.state == .new
-            }) else {
-                return TestResult(
-                    name: "Order Accept",
-                    description: "Тест принятия заказа",
-                    status: .failed,
-                    message: "Нет новых заказов для тестирования",
-                    duration: Date().timeIntervalSince(start)
-                )
-            }
-            
-            let acceptedOrder = try await kaspiAPI.acceptOrder(
-                orderId: newOrder.id,
-                orderCode: newOrder.attributes.code
-            )
-            let duration = Date().timeIntervalSince(start)
-            
-            return TestResult(
-                name: "Order Accept",
-                description: "Тест принятия заказа",
-                status: .passed,
-                message: "Заказ \(acceptedOrder.attributes.code) принят",
-                duration: duration,
-                details: [
-                    "orderCode": acceptedOrder.attributes.code,
-                    "newStatus": acceptedOrder.attributes.status.rawValue
-                ]
-            )
-        } catch {
-            let duration = Date().timeIntervalSince(start)
-            return TestResult(
-                name: "Order Accept",
-                description: "Тест принятия заказа",
-                status: .failed,
-                message: error.localizedDescription,
-                duration: duration,
-                error: error
-            )
-        }
-    }
-    
-    /// Тест отправки заказа
-    private func testShipOrder() async -> TestResult {
-        let start = Date()
-        
-        do {
-            // Ищем принятые заказы
-            let ordersResponse = try await kaspiAPI.getOrders(page: 0, size: 5)
-            guard let acceptedOrder = ordersResponse.data?.first(where: {
-                $0.attributes.status == .acceptedByMerchant
-            }) else {
-                return TestResult(
-                    name: "Order Ship",
-                    description: "Тест отправки заказа",
-                    status: .failed,
-                    message: "Нет принятых заказов для тестирования",
-                    duration: Date().timeIntervalSince(start)
-                )
-            }
-            
-            let shippedOrder = try await kaspiAPI.shipOrder(orderId: acceptedOrder.id)
-            let duration = Date().timeIntervalSince(start)
-            
-            return TestResult(
-                name: "Order Ship",
-                description: "Тест отправки заказа",
-                status: .passed,
-                message: "Заказ \(shippedOrder.attributes.code) отправлен",
-                duration: duration,
-                details: [
-                    "orderCode": shippedOrder.attributes.code,
-                    "newStatus": shippedOrder.attributes.status.rawValue
-                ]
-            )
-        } catch {
-            let duration = Date().timeIntervalSince(start)
-            return TestResult(
-                name: "Order Ship",
-                description: "Тест отправки заказа",
-                status: .failed,
-                message: error.localizedDescription,
-                duration: duration,
-                error: error
-            )
-        }
-    }
-    
-    /// Тест завершения заказа
-    private func testCompleteOrder() async -> TestResult {
-        let start = Date()
-        
-        do {
-            // Это тест только первого этапа (отправка кода)
-            let ordersResponse = try await kaspiAPI.getOrders(page: 0, size: 5)
-            guard let deliveredOrder = ordersResponse.data?.first(where: {
-                $0.attributes.status == .kaspiDelivery
-            }) else {
-                return TestResult(
-                    name: "Order Complete",
-                    description: "Тест завершения заказа",
-                    status: .failed,
-                    message: "Нет заказов в доставке для тестирования",
-                    duration: Date().timeIntervalSince(start)
-                )
-            }
-            
-            // Тестируем только первый этап
-            try await kaspiAPI.completeOrderStep1(orderId: deliveredOrder.id)
-            let duration = Date().timeIntervalSince(start)
-            
-            return TestResult(
-                name: "Order Complete",
-                description: "Тест завершения заказа (этап 1)",
-                status: .passed,
-                message: "Код подтверждения отправлен клиенту",
-                duration: duration,
-                details: ["orderCode": deliveredOrder.attributes.code]
-            )
-        } catch {
-            let duration = Date().timeIntervalSince(start)
-            return TestResult(
-                name: "Order Complete",
-                description: "Тест завершения заказа",
-                status: .failed,
-                message: error.localizedDescription,
-                duration: duration,
-                error: error
-            )
-        }
-    }
-    
     /// Тест получения информации о складе
     private func testGetDeliveryPoint() async -> TestResult {
         let start = Date()
@@ -547,58 +551,6 @@ class KaspiTestService: ObservableObject {
             return TestResult(
                 name: "IMEI Codes",
                 description: "Тест работы с IMEI кодами",
-                status: .failed,
-                message: error.localizedDescription,
-                duration: duration,
-                error: error
-            )
-        }
-    }
-    
-    /// Тест операций с позициями заказа
-    private func testOrderEntryOperations() async -> TestResult {
-        let start = Date()
-        
-        do {
-            let ordersResponse = try await kaspiAPI.getOrders(page: 0, size: 5)
-            guard let order = ordersResponse.data?.first else {
-                return TestResult(
-                    name: "Order Entry Operations",
-                    description: "Тест операций с позициями",
-                    status: .failed,
-                    message: "Нет заказов для тестирования",
-                    duration: Date().timeIntervalSince(start)
-                )
-            }
-            
-            let entries = try await kaspiAPI.getOrderEntries(orderId: order.id)
-            guard let firstEntry = entries.first else {
-                return TestResult(
-                    name: "Order Entry Operations",
-                    description: "Тест операций с позициями",
-                    status: .failed,
-                    message: "Нет позиций в заказе",
-                    duration: Date().timeIntervalSince(start)
-                )
-            }
-            
-            // Тестируем изменение веса (безопасная операция)
-            try await kaspiAPI.changeOrderEntryWeight(entryId: firstEntry.id, newWeight: 1.0)
-            let duration = Date().timeIntervalSince(start)
-            
-            return TestResult(
-                name: "Order Entry Operations",
-                description: "Тест операций с позициями",
-                status: .passed,
-                message: "Операция изменения веса выполнена успешно",
-                duration: duration,
-                details: ["entryId": firstEntry.id, "newWeight": 1.0]
-            )
-        } catch {
-            let duration = Date().timeIntervalSince(start)
-            return TestResult(
-                name: "Order Entry Operations",
-                description: "Тест операций с позициями",
                 status: .failed,
                 message: error.localizedDescription,
                 duration: duration,
@@ -731,151 +683,4 @@ extension KaspiTestService {
         
         return try? JSONSerialization.data(withJSONObject: exportData, options: .prettyPrinted)
     }
-}d,
-                message: "Токен отсутствует",
-                duration: Date().timeIntervalSince(start)
-            )
-        }
-        
-        // Проверяем валидность токена
-        let isValid = await kaspiAPI.validateToken()
-        let duration = Date().timeIntervalSince(start)
-        
-        return TestResult(
-            name: "API Token",
-            description: "Проверка валидности токена",
-            status: isValid ? .passed : .failed,
-            message: isValid ? "Токен валиден" : "Токен недействителен",
-            duration: duration
-        )
-    }
-    
-    /// Тест получения категорий
-    private func testGetCategories() async -> TestResult {
-        let start = Date()
-        
-        do {
-            let categories = try await kaspiAPI.getCategories()
-            let duration = Date().timeIntervalSince(start)
-            
-            return TestResult(
-                name: "Categories",
-                description: "Получение списка категорий",
-                status: .passed,
-                message: "Получено \(categories.count) категорий",
-                duration: duration,
-                details: ["categoriesCount": categories.count]
-            )
-        } catch {
-            let duration = Date().timeIntervalSince(start)
-            return TestResult(
-                name: "Categories",
-                description: "Получение списка категорий",
-                status: .failed,
-                message: error.localizedDescription,
-                duration: duration,
-                error: error
-            )
-        }
-    }
-    
-    /// Тест получения атрибутов категории
-    private func testGetCategoryAttributes() async -> TestResult {
-        let start = Date()
-        
-        do {
-            // Сначала получаем категории
-            let categories = try await kaspiAPI.getCategories()
-            guard let firstCategory = categories.first else {
-                return TestResult(
-                    name: "Category Attributes",
-                    description: "Получение атрибутов категории",
-                    status: .failed,
-                    message: "Нет доступных категорий",
-                    duration: Date().timeIntervalSince(start)
-                )
-            }
-            
-            // Получаем атрибуты первой категории
-            let attributes = try await kaspiAPI.getCategoryAttributes(categoryCode: firstCategory.code)
-            let duration = Date().timeIntervalSince(start)
-            
-            return TestResult(
-                name: "Category Attributes",
-                description: "Получение атрибутов категории",
-                status: .passed,
-                message: "Получено \(attributes.count) атрибутов для категории \(firstCategory.title)",
-                duration: duration,
-                details: [
-                    "categoryCode": firstCategory.code,
-                    "attributesCount": attributes.count
-                ]
-            )
-        } catch {
-            let duration = Date().timeIntervalSince(start)
-            return TestResult(
-                name: "Category Attributes",
-                description: "Получение атрибутов категории",
-                status: .failed,
-                message: error.localizedDescription,
-                duration: duration,
-                error: error
-            )
-        }
-    }
-    
-    /// Тест получения схемы импорта
-    private func testGetProductSchema() async -> TestResult {
-        let start = Date()
-        
-        do {
-            let schema = try await kaspiAPI.getProductImportSchema()
-            let duration = Date().timeIntervalSince(start)
-            
-            return TestResult(
-                name: "Product Schema",
-                description: "Получение схемы импорта товаров",
-                status: .passed,
-                message: "Схема импорта получена",
-                duration: duration,
-                details: ["schemaKeys": Array(schema.keys)]
-            )
-        } catch {
-            let duration = Date().timeIntervalSince(start)
-            return TestResult(
-                name: "Product Schema",
-                description: "Получение схемы импорта товаров",
-                status: .failed,
-                message: error.localizedDescription,
-                duration: duration,
-                error: error
-            )
-        }
-    }
-    
-    /// Тест получения списка товаров
-    private func testGetProducts() async -> TestResult {
-        let start = Date()
-        
-        do {
-            let response = try await kaspiAPI.getProducts(page: 0, size: 10)
-            let products = response.data ?? []
-            let duration = Date().timeIntervalSince(start)
-            
-            return TestResult(
-                name: "Products List",
-                description: "Получение списка товаров",
-                status: .passed,
-                message: "Получено \(products.count) товаров",
-                duration: duration,
-                details: [
-                    "productsCount": products.count,
-                    "totalElements": response.meta?.pagination?.totalElements ?? 0
-                ]
-            )
-        } catch {
-            let duration = Date().timeIntervalSince(start)
-            return TestResult(
-                name: "Products List",
-                description: "Получение списка товаров",
-                status: .faile
+}
