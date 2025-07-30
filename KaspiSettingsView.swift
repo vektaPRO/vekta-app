@@ -2,7 +2,7 @@
 //  KaspiSettingsView.swift
 //  vektaApp
 //
-//  Настройка интеграции с Kaspi API (X-TOKEN из cookies)
+//  Обновленная настройка интеграции с Kaspi API (X-TOKEN из cookies)
 //
 
 import SwiftUI
@@ -93,8 +93,8 @@ extension KaspiSettingsView {
                     .fontWeight(.bold)
                 
                 Text(kaspiService.kaspiToken != nil ?
-                     "API готов к работе" :
-                     "Добавьте X-TOKEN для синхронизации")
+                     "X-TOKEN активен и готов к работе" :
+                     "Добавьте X-TOKEN из cookies для синхронизации")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
@@ -176,11 +176,11 @@ extension KaspiSettingsView {
             VStack(spacing: 12) {
                 Toggle(isOn: $kaspiService.isAutoDumpingEnabled) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Автодемпинг")
+                        Text("Автодемпинг цен")
                             .font(.subheadline)
                             .fontWeight(.medium)
                         
-                        Text("Снижать цены если позиция > 1")
+                        Text("Снижать цены если позиция товара > 1")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
@@ -194,7 +194,7 @@ extension KaspiSettingsView {
                         Image(systemName: "info.circle")
                             .foregroundColor(.blue)
                         
-                        Text("Проверка каждые 5 минут. Цена снижается на 2%")
+                        Text("Проверка каждые 5 минут. Цена снижается на 2% при позиции > 1")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
@@ -284,206 +284,7 @@ extension KaspiSettingsView {
                     // Показываем успех
                     let alert = UIAlertController(
                         title: "✅ Успех",
-                        message: "Токен валидный. API работает корректно.",
+                        message: "X-TOKEN валидный. Kaspi API работает корректно.",
                         preferredStyle: .alert
                     )
                     alert.addAction(UIAlertAction(title: "OK", style: .default))
-                    
-                    if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-                       let window = windowScene.windows.first {
-                        window.rootViewController?.present(alert, animated: true)
-                    }
-                } else {
-                    kaspiService.errorMessage = "Токен недействителен или API недоступен"
-                }
-            }
-        }
-    }
-    
-    private func syncProducts() {
-        Task {
-            do {
-                let products = try await kaspiService.syncAllProducts()
-                
-                await MainActor.run {
-                    // Показываем успех
-                    let alert = UIAlertController(
-                        title: "✅ Синхронизация завершена",
-                        message: "Загружено \(products.count) товаров",
-                        preferredStyle: .alert
-                    )
-                    alert.addAction(UIAlertAction(title: "OK", style: .default))
-                    
-                    if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-                       let window = windowScene.windows.first {
-                        window.rootViewController?.present(alert, animated: true)
-                    }
-                }
-            } catch {
-                kaspiService.errorMessage = error.localizedDescription
-            }
-        }
-    }
-}
-
-// MARK: - Instructions View
-
-struct KaspiTokenInstructionsView: View {
-    @Environment(\.dismiss) private var dismiss
-    
-    var body: some View {
-        NavigationView {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    
-                    // Заголовок
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Как получить X-TOKEN")
-                            .font(.title)
-                            .fontWeight(.bold)
-                        
-                        Text("X-TOKEN необходим для работы с Kaspi API")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    // Важное предупреждение
-                    HStack(spacing: 12) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.title2)
-                            .foregroundColor(.orange)
-                        
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Важно!")
-                                .font(.headline)
-                            
-                            Text("Kaspi не предоставляет публичный API. Токен берется из cookies в браузере.")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                    .padding(16)
-                    .background(Color.orange.opacity(0.1))
-                    .cornerRadius(12)
-                    
-                    // Инструкции
-                    VStack(alignment: .leading, spacing: 20) {
-                        InstructionStep(
-                            number: "1",
-                            title: "Войдите в Kaspi Seller Cabinet",
-                            description: "Откройте браузер и войдите в личный кабинет продавца на kaspi.kz"
-                        )
-                        
-                        InstructionStep(
-                            number: "2",
-                            title: "Откройте Developer Tools",
-                            description: "Нажмите F12 или Cmd+Option+I (Mac) / Ctrl+Shift+I (Windows)"
-                        )
-                        
-                        InstructionStep(
-                            number: "3",
-                            title: "Перейдите во вкладку Application",
-                            description: "В Developer Tools найдите вкладку Application (или Storage в Firefox)"
-                        )
-                        
-                        InstructionStep(
-                            number: "4",
-                            title: "Найдите Cookies",
-                            description: "В левой панели раскройте Cookies → kaspi.kz"
-                        )
-                        
-                        InstructionStep(
-                            number: "5",
-                            title: "Скопируйте X-TOKEN",
-                            description: "Найдите cookie с именем X-TOKEN и скопируйте его значение (Value)"
-                        )
-                    }
-                    
-                    // Скриншот примера
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Пример:")
-                            .font(.headline)
-                        
-                        Image(systemName: "photo")
-                            .font(.system(size: 100))
-                            .foregroundColor(.secondary)
-                            .frame(maxWidth: .infinity, minHeight: 200)
-                            .background(Color(UIColor.systemGray6))
-                            .cornerRadius(12)
-                            .overlay(
-                                Text("Скриншот Developer Tools")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            )
-                    }
-                    
-                    // Дополнительная информация
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Дополнительно:")
-                            .font(.headline)
-                        
-                        VStack(alignment: .leading, spacing: 8) {
-                            Label("Токен действителен ограниченное время", systemImage: "clock")
-                            Label("При выходе из кабинета токен становится недействительным", systemImage: "xmark.circle")
-                            Label("Для автоматизации рекомендуется использовать отдельный браузер", systemImage: "macwindow")
-                        }
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    }
-                    .padding(16)
-                    .background(Color(UIColor.systemGray6))
-                    .cornerRadius(12)
-                    
-                    Spacer(minLength: 50)
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 20)
-            }
-            .navigationTitle("Инструкция")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Закрыть") {
-                        dismiss()
-                    }
-                }
-            }
-        }
-    }
-}
-
-// MARK: - Helper Views
-
-struct InstructionStep: View {
-    let number: String
-    let title: String
-    let description: String
-    
-    var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Text(number)
-                .font(.title3)
-                .fontWeight(.bold)
-                .foregroundColor(.white)
-                .frame(width: 32, height: 32)
-                .background(Color.orange)
-                .clipShape(Circle())
-            
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.headline)
-                
-                Text(description)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            
-            Spacer()
-        }
-    }
-}
-
-#Preview {
-    KaspiSettingsView()
-}

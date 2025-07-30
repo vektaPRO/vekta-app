@@ -2,7 +2,7 @@
 //  KaspiAPIService.swift
 //  vektaApp
 //
-//  Обновленная интеграция с Kaspi API с централизованной обработкой ошибок
+//  Обновленная интеграция с Kaspi API на основе Python проекта dumping
 //
 
 import Foundation
@@ -10,151 +10,53 @@ import FirebaseAuth
 import FirebaseFirestore
 import Combine
 
-// MARK: - Kaspi API Models
+// MARK: - Kaspi API Models (исправленные)
 
-/// Модель товара из Kaspi API
+/// Ответ от API с товарами
 struct KaspiProductResponse: Codable {
-    let id: String
-    let sku: String
+    let content: [KaspiProduct]
+    let totalElements: Int
+    let totalPages: Int
+    let size: Int
+    let number: Int
+}
+
+/// Модель товара из Kaspi API (соответствует реальному API)
+struct KaspiProduct: Codable {
+    let productId: String
     let name: String
-    let description: String?
+    let sku: String?
     let price: Double
-    let category: String
-    let images: [String]
-    let stock: KaspiStock
     let isActive: Bool
+    let category: String?
+    let imageUrl: String?
+    let position: Int?
     
     enum CodingKeys: String, CodingKey {
-        case id = "product_id"
-        case sku
+        case productId = "id"
         case name
-        case description
+        case sku
         case price
+        case isActive
         case category
-        case images
-        case stock
-        case isActive = "is_active"
+        case imageUrl
+        case position
     }
 }
 
-/// Остатки товара по складам
-struct KaspiStock: Codable {
-    let total: Int
-    let warehouses: [KaspiWarehouseStock]
+/// Ответ позиции товара
+struct ProductPositionResponse: Codable {
+    let position: Int
+    let totalProducts: Int?
 }
 
-/// Остатки на конкретном складе
-struct KaspiWarehouseStock: Codable {
-    let warehouseId: String
-    let warehouseName: String
-    let quantity: Int
-    let reserved: Int
-    let available: Int
-    
-    enum CodingKeys: String, CodingKey {
-        case warehouseId = "warehouse_id"
-        case warehouseName = "warehouse_name"
-        case quantity
-        case reserved
-        case available
-    }
-}
-
-/// Запрос на отправку SMS кода
-struct KaspiSMSCodeRequest: Codable {
-    let orderId: String
-    let trackingNumber: String
-    let customerPhone: String
-    
-    enum CodingKeys: String, CodingKey {
-        case orderId = "order_id"
-        case trackingNumber = "tracking_number"
-        case customerPhone = "customer_phone"
-    }
-}
-
-/// Ответ на запрос SMS кода
-struct KaspiSMSCodeResponse: Codable {
-    let success: Bool
-    let messageId: String?
-    let expiresAt: Date?
-    let attemptsLeft: Int
-    
-    enum CodingKeys: String, CodingKey {
-        case success
-        case messageId = "message_id"
-        case expiresAt = "expires_at"
-        case attemptsLeft = "attempts_left"
-    }
-}
-
-/// Запрос подтверждения доставки
-struct KaspiDeliveryConfirmationRequest: Codable {
-    let orderId: String
-    let trackingNumber: String
-    let confirmationCode: String
-    
-    enum CodingKeys: String, CodingKey {
-        case orderId = "order_id"
-        case trackingNumber = "tracking_number"
-        case confirmationCode = "confirmation_code"
-    }
-}
-
-/// Ответ подтверждения доставки
-struct KaspiDeliveryConfirmationResponse: Codable {
-    let success: Bool
-    let confirmed: Bool
-    let confirmedAt: Date?
-    let message: String?
-    
-    enum CodingKeys: String, CodingKey {
-        case success
-        case confirmed
-        case confirmedAt = "confirmed_at"
-        case message
-    }
-}
-
-/// Обновление остатков
-struct KaspiStockUpdateRequest: Codable {
+/// Запрос обновления цены (массив объектов)
+struct PriceUpdateRequest: Codable {
     let productId: String
-    let warehouseId: String
-    let quantity: Int
-    let operation: StockOperation
-    
-    enum StockOperation: String, Codable {
-        case set = "SET"        // Установить точное количество
-        case add = "ADD"        // Добавить к текущему
-        case subtract = "SUBTRACT" // Вычесть из текущего
-    }
-    
-    enum CodingKeys: String, CodingKey {
-        case productId = "product_id"
-        case warehouseId = "warehouse_id"
-        case quantity
-        case operation
-    }
+    let price: Int
 }
 
-/// Ответ об обновлении остатков
-struct KaspiStockUpdateResponse: Codable {
-    let success: Bool
-    let productId: String
-    let warehouseId: String
-    let previousQuantity: Int
-    let newQuantity: Int
-    
-    enum CodingKeys: String, CodingKey {
-        case success
-        case productId = "product_id"
-        case warehouseId = "warehouse_id"
-        case previousQuantity = "previous_quantity"
-        case newQuantity = "new_quantity"
-    }
-}
-
-// MARK: - KaspiAPIService
+// MARK: - KaspiAPIService (переписанный)
 
 @MainActor
 class KaspiAPIService: ObservableObject {
@@ -164,31 +66,46 @@ class KaspiAPIService: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String?
     @Published var lastSyncDate: Date?
-    @Published var apiToken: String?
     @Published var syncProgress: Double = 0.0
+    @Published var isAutoDumpingEnabled = false
     
     // MARK: - Private Properties
     
     private let db = Firestore.firestore()
-    private let networkManager = NetworkManager.shared
     private var authListener: AuthStateDidChangeListenerHandle?
+    private var autoDumpTimer: Timer?
     
-    // Endpoints
-    private enum Endpoints {
-        static let validateToken = "/auth/validate"
-        static let products = "/products"
-        static let productDetail = "/products/%@"
-        static let updateStock = "/stock/update"
-        static let requestSMSCode = "/delivery/sms/request"
-        static let confirmDelivery = "/delivery/confirm"
-        static let warehouses = "/warehouses"
-        static let orders = "/orders"
+    // Базовый URL (из документа)
+    private let baseURL = "https://kaspi.kz/shop/api/v2"
+    
+    // X-TOKEN из cookies (должен быть установлен продавцом)
+    @Published var kaspiToken: String? {
+        didSet {
+            if kaspiToken != nil {
+                saveTokenToFirestore()
+            }
+        }
+    }
+    
+    // Заголовки для запросов (точно как в Python проекте)
+    private var headers: [String: String] {
+        var headers = [
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+        ]
+        
+        if let token = kaspiToken {
+            headers["X-TOKEN"] = token
+        }
+        
+        return headers
     }
     
     // MARK: - Initialization
     
     init() {
-        print("🔧 KaspiAPIService инициализирован")
+        print("🔧 KaspiAPIService инициализирован (обновленная версия на основе Python проекта)")
         setupAuthListener()
     }
     
@@ -196,6 +113,7 @@ class KaspiAPIService: ObservableObject {
         if let listener = authListener {
             Auth.auth().removeStateDidChangeListener(listener)
         }
+        autoDumpTimer?.invalidate()
     }
     
     // MARK: - Authentication
@@ -204,35 +122,32 @@ class KaspiAPIService: ObservableObject {
         authListener = Auth.auth().addStateDidChangeListener { [weak self] _, user in
             Task { @MainActor in
                 if user != nil {
-                    await self?.loadApiToken()
+                    await self?.loadKaspiToken()
                 } else {
-                    self?.apiToken = nil
+                    self?.kaspiToken = nil
                 }
             }
         }
     }
     
-    func loadApiToken() async {
+    /// Загрузить токен из Firestore
+    func loadKaspiToken() async {
         guard let userId = Auth.auth().currentUser?.uid else {
             print("❌ Нет авторизованного пользователя")
-            errorMessage = "Пользователь не авторизован"
             return
         }
-        
-        print("🔍 Загружаем токен для пользователя: \(userId)")
         
         do {
             let document = try await db.collection("sellers").document(userId).getDocument()
             
             if let data = document.data(),
-               let token = data["kaspiApiToken"] as? String {
-                apiToken = token
+               let token = data["kaspiToken"] as? String { // Изменено с kaspiApiToken на kaspiToken
+                kaspiToken = token
                 errorMessage = nil
-                print("✅ Kaspi API токен загружен")
+                print("✅ Kaspi токен (X-TOKEN) загружен")
             } else {
-                print("⚠️ Kaspi API токен не найден")
-                apiToken = nil
-                errorMessage = "Токен не найден. Добавьте токен в настройках."
+                print("⚠️ Kaspi токен не найден")
+                kaspiToken = nil
             }
         } catch {
             print("❌ Ошибка загрузки токена: \(error.localizedDescription)")
@@ -240,288 +155,207 @@ class KaspiAPIService: ObservableObject {
         }
     }
     
-    // MARK: - API Methods
+    /// Сохранить токен в Firestore
+    private func saveTokenToFirestore() {
+        guard let userId = Auth.auth().currentUser?.uid,
+              let token = kaspiToken else { return }
+        
+        Task {
+            do {
+                try await db.collection("sellers").document(userId).setData([
+                    "kaspiToken": token,
+                    "tokenUpdatedAt": FieldValue.serverTimestamp()
+                ], merge: true)
+                print("✅ Токен сохранен в Firestore")
+            } catch {
+                print("❌ Ошибка сохранения токена: \(error)")
+            }
+        }
+    }
     
-    /// Проверить валидность токена
-    func validateToken() async throws -> Bool {
-        guard let token = apiToken else {
+    // MARK: - API Methods (точно по документу)
+    
+    /// Получить все товары продавца (GET /api/v2/products)
+    func fetchAllProducts(page: Int = 0, size: Int = 50) async throws -> [KaspiProduct] {
+        guard let token = kaspiToken else {
             throw KaspiAPIError.tokenNotFound
         }
         
-        struct ValidateResponse: Codable {
-            let valid: Bool
-            let merchantId: String?
-            let merchantName: String?
-            
-            enum CodingKeys: String, CodingKey {
-                case valid
-                case merchantId = "merchant_id"
-                case merchantName = "merchant_name"
-            }
+        let urlString = "\(baseURL)/products?page=\(page)&size=\(size)"
+        guard let url = URL(string: urlString) else {
+            throw NetworkError.invalidURL
         }
         
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.allHTTPHeaderFields = headers
+        
         do {
-            let response: ValidateResponse = try await networkManager.get(
-                endpoint: Endpoints.validateToken,
-                apiToken: token
-            )
+            let (data, response) = try await URLSession.shared.data(for: request)
             
-            if response.valid {
-                // Сохраняем информацию о продавце
-                if let userId = Auth.auth().currentUser?.uid,
-                   let merchantId = response.merchantId {
-                    try await db.collection("sellers").document(userId).updateData([
-                        "kaspiMerchantId": merchantId,
-                        "kaspiMerchantName": response.merchantName ?? ""
-                    ])
-                }
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw NetworkError.invalidResponse
             }
             
-            return response.valid
+            guard httpResponse.statusCode == 200 else {
+                throw NetworkError.serverError(httpResponse.statusCode, "Ошибка получения товаров")
+            }
             
-        } catch let error as NetworkError {
-            throw KaspiAPIError.from(error)
+            let decoded = try JSONDecoder().decode(KaspiProductResponse.self, from: data)
+            print("✅ Получено \(decoded.content.count) товаров из Kaspi API")
+            return decoded.content
+            
         } catch {
-            throw KaspiAPIError.underlying(NetworkError.from(error))
+            print("❌ Ошибка получения товаров: \(error)")
+            throw error
         }
     }
     
-    /// Загрузить заказы из Kaspi API
-    func loadOrders() async throws -> [KaspiOrder] {
-        guard let token = apiToken else {
+    /// Получить позицию товара в поиске (GET /api/v2/prices/product-position/{product-id})
+    func fetchProductPosition(productId: String) async throws -> Int {
+        guard let token = kaspiToken else {
             throw KaspiAPIError.tokenNotFound
         }
         
-        struct KaspiOrderResponse: Codable {
-            let orderId: String
-            let orderNumber: String
-            let customerInfo: KaspiCustomerInfoResponse
-            let deliveryAddress: String
-            let totalAmount: Double
-            let status: String
-            let createdAt: Date
-            let items: [KaspiOrderItemResponse]
-            
-            enum CodingKeys: String, CodingKey {
-                case orderId = "order_id"
-                case orderNumber = "order_number"
-                case customerInfo = "customer_info"
-                case deliveryAddress = "delivery_address"
-                case totalAmount = "total_amount"
-                case status
-                case createdAt = "created_at"
-                case items
-            }
+        let urlString = "\(baseURL)/prices/product-position/\(productId)"
+        guard let url = URL(string: urlString) else {
+            throw NetworkError.invalidURL
         }
         
-        struct KaspiCustomerInfoResponse: Codable {
-            let name: String
-            let phone: String
-            let email: String?
-        }
-        
-        struct KaspiOrderItemResponse: Codable {
-            let productId: String
-            let productName: String
-            let quantity: Int
-            let price: Double
-            
-            enum CodingKeys: String, CodingKey {
-                case productId = "product_id"
-                case productName = "product_name"
-                case quantity
-                case price
-            }
-        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.allHTTPHeaderFields = headers
         
         do {
-            let response: KaspiResponse<[KaspiOrderResponse]> = try await networkManager.get(
-                endpoint: Endpoints.orders,
-                parameters: [
-                    "status": "new,processing",
-                    "limit": 100
-                ],
-                apiToken: token
-            )
+            let (data, response) = try await URLSession.shared.data(for: request)
             
-            guard let kaspiOrders = response.data else {
-                return []
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw NetworkError.invalidResponse
             }
             
-            // Конвертируем в нашу модель
-            return kaspiOrders.map { kaspiOrder in
-                let customerInfo = CustomerInfo(
-                    name: kaspiOrder.customerInfo.name,
-                    phone: kaspiOrder.customerInfo.phone,
-                    email: kaspiOrder.customerInfo.email
-                )
-                
-                let items = kaspiOrder.items.map { item in
-                    KaspiOrderItem(
-                        productId: item.productId,
-                        productName: item.productName,
-                        quantity: item.quantity,
-                        price: item.price
-                    )
-                }
-                
-                return KaspiOrder(
-                    orderId: kaspiOrder.orderId,
-                    orderNumber: kaspiOrder.orderNumber,
-                    customerInfo: customerInfo,
-                    deliveryAddress: kaspiOrder.deliveryAddress,
-                    totalAmount: kaspiOrder.totalAmount,
-                    status: kaspiOrder.status,
-                    createdAt: kaspiOrder.createdAt,
-                    items: items
-                )
+            guard httpResponse.statusCode == 200 else {
+                throw NetworkError.serverError(httpResponse.statusCode, "Ошибка получения позиции")
             }
             
-        } catch let error as NetworkError {
-            throw KaspiAPIError.from(error)
+            let decoded = try JSONDecoder().decode(ProductPositionResponse.self, from: data)
+            print("📍 Товар \(productId) на позиции: \(decoded.position)")
+            return decoded.position
+            
         } catch {
-            throw KaspiAPIError.syncFailed(error.localizedDescription)
+            print("❌ Ошибка получения позиции: \(error)")
+            throw error
         }
     }
     
-    /// Создать доставку из заказа Kaspi
-    func createDeliveryFromKaspiOrder(
-        _ kaspiOrder: KaspiOrder,
-        courierId: String,
-        courierName: String
-    ) async throws -> DeliveryConfirmation {
+    /// Обновить цену товара (PATCH /api/v2/prices/change)
+    func updatePrice(productId: String, newPrice: Double) async throws {
+        guard let token = kaspiToken else {
+            throw KaspiAPIError.tokenNotFound
+        }
         
-        let delivery = DeliveryConfirmation(
-            id: UUID().uuidString,
-            orderId: kaspiOrder.orderId,
-            trackingNumber: kaspiOrder.orderNumber,
-            courierId: courierId,
-            courierName: courierName,
-            customerPhone: kaspiOrder.customerInfo.phone,
-            deliveryAddress: kaspiOrder.deliveryAddress,
-            smsCodeRequested: false,
-            smsCodeRequestedAt: nil,
-            confirmationCode: nil,
-            codeExpiresAt: nil,
-            status: .pending,
-            confirmedAt: nil,
-            confirmedBy: nil,
-            attemptCount: 0,
-            maxAttempts: 3,
-            createdAt: Date(),
-            updatedAt: Date()
-        )
+        let urlString = "\(baseURL)/prices/change"
+        guard let url = URL(string: urlString) else {
+            throw NetworkError.invalidURL
+        }
         
-        // Сохраняем доставку в Firestore
-        try await db.collection("deliveries")
-            .document(delivery.id)
-            .setData(delivery.toDictionary())
+        var request = URLRequest(url: url)
+        request.httpMethod = "PATCH"
+        request.allHTTPHeaderFields = headers
         
-        return delivery
+        // Формат как в Python: массив с одним объектом
+        let payload = [
+            PriceUpdateRequest(productId: productId, price: Int(newPrice))
+        ]
+        
+        request.httpBody = try JSONEncoder().encode(payload)
+        
+        do {
+            let (_, response) = try await URLSession.shared.data(for: request)
+            
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw NetworkError.invalidResponse
+            }
+            
+            guard httpResponse.statusCode == 200 || httpResponse.statusCode == 204 else {
+                throw NetworkError.serverError(httpResponse.statusCode, "Ошибка обновления цены")
+            }
+            
+            print("✅ Цена товара \(productId) обновлена до \(newPrice) ₸")
+            
+            // Сохраняем историю изменения цены
+            await savePriceHistory(productId: productId, newPrice: newPrice)
+            
+        } catch {
+            print("❌ Ошибка обновления цены: \(error)")
+            throw error
+        }
     }
     
-    /// Синхронизировать все товары
+    // MARK: - Синхронизация товаров
+    
+    /// Синхронизировать все товары с Firebase
     func syncAllProducts() async throws -> [Product] {
-        guard let token = apiToken else {
-            throw KaspiAPIError.tokenNotFound
-        }
-        
         isLoading = true
         errorMessage = nil
         syncProgress = 0.0
         
         do {
-            // Валидируем токен
-            let isValid = try await validateToken()
-            guard isValid else {
-                throw KaspiAPIError.invalidToken
-            }
+            // 1. Получаем все товары из Kaspi постранично
+            var allKaspiProducts: [KaspiProduct] = []
+            var page = 0
+            var hasMore = true
             
-            syncProgress = 0.1
-            
-            // Загружаем товары постранично
-            var allProducts: [Product] = []
-            var currentPage = 1
-            var hasMorePages = true
-            
-            while hasMorePages {
-                let response: KaspiResponse<[KaspiProductResponse]> = try await networkManager.get(
-                    endpoint: Endpoints.products,
-                    parameters: [
-                        "page": currentPage,
-                        "page_size": 100
-                    ],
-                    apiToken: token
-                )
+            while hasMore {
+                let products = try await fetchAllProducts(page: page, size: 50)
+                allKaspiProducts.append(contentsOf: products)
                 
-                if let kaspiProducts = response.data {
-                    // Конвертируем Kaspi товары в наш формат
-                    let products = kaspiProducts.compactMap { convertKaspiProductToProduct($0) }
-                    allProducts.append(contentsOf: products)
-                    
-                    // Обновляем прогресс
-                    if let pagination = response.pagination {
-                        syncProgress = Double(currentPage) / Double(pagination.totalPages)
-                        hasMorePages = currentPage < pagination.totalPages
-                        currentPage += 1
-                    } else {
-                        hasMorePages = false
-                    }
+                syncProgress = Double(allKaspiProducts.count) / 200.0 // Примерная оценка
+                
+                if products.count < 50 {
+                    hasMore = false
+                } else {
+                    page += 1
                 }
+                
+                // Небольшая пауза между запросами
+                try await Task.sleep(nanoseconds: 200_000_000) // 0.2 секунды
             }
             
-            // Сохраняем в Firestore
-            try await saveProductsToFirestore(allProducts)
+            // 2. Конвертируем в наш формат Product
+            let products = allKaspiProducts.map { kaspiProduct in
+                convertKaspiProductToProduct(kaspiProduct)
+            }
+            
+            // 3. Сохраняем в Firestore
+            try await saveProductsToFirestore(products)
             
             isLoading = false
             lastSyncDate = Date()
             syncProgress = 1.0
-            print("✅ Синхронизация завершена! Загружено \(allProducts.count) товаров")
             
-            return allProducts
+            print("✅ Синхронизировано \(products.count) товаров")
+            return products
             
-        } catch let error as KaspiAPIError {
-            isLoading = false
-            errorMessage = error.localizedDescription
-            syncProgress = 0.0
-            throw error
-        } catch let error as NetworkError {
-            isLoading = false
-            let kaspiError = KaspiAPIError.from(error)
-            errorMessage = kaspiError.localizedDescription
-            syncProgress = 0.0
-            throw kaspiError
         } catch {
             isLoading = false
-            let kaspiError = KaspiAPIError.underlying(NetworkError.from(error))
-            errorMessage = kaspiError.localizedDescription
             syncProgress = 0.0
-            throw kaspiError
+            errorMessage = error.localizedDescription
+            throw error
         }
     }
     
-    /// Конвертация товара из формата Kaspi в наш формат
-    private func convertKaspiProductToProduct(_ kaspiProduct: KaspiProductResponse) -> Product {
-        // Конвертируем склады
-        var warehouseStock: [String: Int] = [:]
-        for warehouse in kaspiProduct.stock.warehouses {
-            warehouseStock[warehouse.warehouseId] = warehouse.available
-        }
-        
-        // Определяем статус
-        let status: ProductStatus = kaspiProduct.isActive ?
-            (kaspiProduct.stock.total > 0 ? .inStock : .outOfStock) : .inactive
-        
+    /// Конвертация из KaspiProduct в Product
+    private func convertKaspiProductToProduct(_ kaspiProduct: KaspiProduct) -> Product {
         return Product(
-            id: kaspiProduct.id,
-            kaspiProductId: kaspiProduct.id,
+            id: kaspiProduct.productId,
+            kaspiProductId: kaspiProduct.productId,
             name: kaspiProduct.name,
-            description: kaspiProduct.description ?? "",
+            description: kaspiProduct.category ?? "",
             price: kaspiProduct.price,
-            category: kaspiProduct.category,
-            imageURL: kaspiProduct.images.first ?? "",
-            status: status,
-            warehouseStock: warehouseStock,
+            category: kaspiProduct.category ?? "Без категории",
+            imageURL: kaspiProduct.imageUrl ?? "",
+            status: kaspiProduct.isActive ? .inStock : .inactive,
+            warehouseStock: [:], // Будет заполнено отдельно
             createdAt: Date(),
             updatedAt: Date(),
             isActive: kaspiProduct.isActive
@@ -537,258 +371,178 @@ class KaspiAPIService: ObservableObject {
         let batch = db.batch()
         let productsRef = db.collection("sellers").document(userId).collection("products")
         
-        // Удаляем старые товары
-        let oldProducts = try await productsRef.getDocuments()
-        for doc in oldProducts.documents {
-            batch.deleteDocument(doc.reference)
-        }
-        
-        // Добавляем новые товары
         for product in products {
             let docRef = productsRef.document(product.id)
-            batch.setData(product.toDictionary(), forDocument: docRef)
+            batch.setData(product.toDictionary(), forDocument: docRef, merge: true)
         }
         
         try await batch.commit()
     }
     
-    // MARK: - SMS Code & Delivery Confirmation
+    // MARK: - Автодемпинг (Price Optimizer)
     
-    /// Запросить SMS код для подтверждения доставки
-    func requestSMSCode(orderId: String, trackingNumber: String, customerPhone: String) async throws -> String {
-        guard let token = apiToken else {
-            throw KaspiAPIError.tokenNotFound
+    /// Включить/выключить автодемпинг
+    func toggleAutoDumping() {
+        isAutoDumpingEnabled.toggle()
+        
+        if isAutoDumpingEnabled {
+            startAutoDumping()
+        } else {
+            stopAutoDumping()
+        }
+    }
+    
+    /// Запустить автодемпинг
+    private func startAutoDumping() {
+        print("🚀 Автодемпинг запущен")
+        
+        // Запускаем цикл каждые 5 минут
+        autoDumpTimer = Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { _ in
+            Task {
+                await self.performAutoDump()
+            }
         }
         
-        let request = KaspiSMSCodeRequest(
-            orderId: orderId,
-            trackingNumber: trackingNumber,
-            customerPhone: customerPhone
-        )
+        // Сразу запускаем первую проверку
+        Task {
+            await performAutoDump()
+        }
+    }
+    
+    /// Остановить автодемпинг
+    private func stopAutoDumping() {
+        print("⏹ Автодемпинг остановлен")
+        autoDumpTimer?.invalidate()
+        autoDumpTimer = nil
+    }
+    
+    /// Выполнить автодемпинг для всех товаров (как в Python проекте)
+    private func performAutoDump() async {
+        guard let userId = Auth.auth().currentUser?.uid else { return }
+        
+        print("🔄 Выполняется автодемпинг...")
         
         do {
-            let response: KaspiSMSCodeResponse = try await networkManager.post(
-                endpoint: Endpoints.requestSMSCode,
-                body: request,
-                apiToken: token
-            )
+            // Получаем активные товары из Firestore
+            let snapshot = try await db.collection("sellers").document(userId)
+                .collection("products")
+                .whereField("isActive", isEqualTo: true)
+                .getDocuments()
             
-            if response.success {
-                print("✅ SMS код отправлен клиенту для заказа \(orderId)")
-                
-                // Сохраняем информацию о запросе в Firestore
-                if let messageId = response.messageId {
-                    try await db.collection("smsRequests").document(messageId).setData([
-                        "orderId": orderId,
-                        "trackingNumber": trackingNumber,
-                        "customerPhone": customerPhone,
-                        "requestedAt": FieldValue.serverTimestamp(),
-                        "expiresAt": response.expiresAt ?? Date().addingTimeInterval(600),
-                        "attemptsLeft": response.attemptsLeft
-                    ])
-                }
-                
-                return response.messageId ?? ""
-            } else {
-                throw KaspiAPIError.smsCodeError("Не удалось отправить SMS код")
+            let products = snapshot.documents.compactMap { doc in
+                Product.fromFirestore(doc.data(), id: doc.documentID)
             }
             
-        } catch let error as NetworkError {
-            throw KaspiAPIError.from(error)
-        } catch let error as KaspiAPIError {
-            throw error
-        } catch {
-            throw KaspiAPIError.smsCodeError(error.localizedDescription)
-        }
-    }
-    
-    /// Подтвердить доставку с помощью SMS кода
-    func confirmDelivery(orderId: String, trackingNumber: String, smsCode: String) async throws -> Bool {
-        guard let token = apiToken else {
-            throw KaspiAPIError.tokenNotFound
-        }
-        
-        let request = KaspiDeliveryConfirmationRequest(
-            orderId: orderId,
-            trackingNumber: trackingNumber,
-            confirmationCode: smsCode
-        )
-        
-        do {
-            let response: KaspiDeliveryConfirmationResponse = try await networkManager.post(
-                endpoint: Endpoints.confirmDelivery,
-                body: request,
-                apiToken: token
-            )
-            
-            if response.success && response.confirmed {
-                // Сохраняем подтверждение в Firestore
-                try await saveDeliveryConfirmation(
-                    orderId: orderId,
-                    trackingNumber: trackingNumber,
-                    smsCode: smsCode,
-                    confirmedAt: response.confirmedAt
-                )
+            // Проверяем позицию каждого товара (как в Python)
+            for product in products where product.isActive {
+                await checkAndUpdatePrice(for: product)
                 
-                return true
-            } else {
-                throw KaspiAPIError.deliveryConfirmationFailed(response.message ?? "Неверный код подтверждения")
+                // Небольшая пауза между товарами
+                try await Task.sleep(nanoseconds: 500_000_000) // 0.5 секунды
             }
             
-        } catch let error as NetworkError {
-            throw KaspiAPIError.from(error)
-        } catch let error as KaspiAPIError {
-            throw error
-        } catch {
-            throw KaspiAPIError.deliveryConfirmationFailed(error.localizedDescription)
-        }
-    }
-    
-    /// Сохранить подтверждение доставки в Firestore
-    private func saveDeliveryConfirmation(
-        orderId: String,
-        trackingNumber: String,
-        smsCode: String,
-        confirmedAt: Date?
-    ) async throws {
-        guard let userId = Auth.auth().currentUser?.uid else {
-            throw KaspiAPIError.authenticationFailed
-        }
-        
-        let confirmationData: [String: Any] = [
-            "orderId": orderId,
-            "trackingNumber": trackingNumber,
-            "confirmationCode": smsCode,
-            "confirmedAt": confirmedAt ?? Date(),
-            "confirmedBy": userId,
-            "syncedWithKaspi": true
-        ]
-        
-        try await db.collection("deliveryConfirmations").document(orderId).setData(confirmationData)
-    }
-    
-    // MARK: - Stock Management
-    
-    /// Обновить остатки товара
-    func updateStock(productId: String, warehouseId: String, quantity: Int, operation: KaspiStockUpdateRequest.StockOperation = .set) async throws {
-        guard let token = apiToken else {
-            throw KaspiAPIError.tokenNotFound
-        }
-        
-        let request = KaspiStockUpdateRequest(
-            productId: productId,
-            warehouseId: warehouseId,
-            quantity: quantity,
-            operation: operation
-        )
-        
-        do {
-            let response: KaspiStockUpdateResponse = try await networkManager.post(
-                endpoint: Endpoints.updateStock,
-                body: request,
-                apiToken: token
-            )
+            print("✅ Автодемпинг завершен")
             
-            if response.success {
-                print("✅ Остатки обновлены для товара \(productId): \(response.previousQuantity) -> \(response.newQuantity)")
+        } catch {
+            print("❌ Ошибка автодемпинга: \(error)")
+        }
+    }
+    
+    /// Проверить и обновить цену товара (логика из Python)
+    private func checkAndUpdatePrice(for product: Product) async {
+        do {
+            // Получаем текущую позицию
+            let position = try await fetchProductPosition(productId: product.kaspiProductId)
+            
+            // Если позиция > 1, снижаем цену на 2% (как в Python)
+            if position > 1 {
+                let newPrice = floor(product.price * 0.98)
                 
-                // Обновляем локальные данные в Firestore
-                if let userId = Auth.auth().currentUser?.uid {
-                    let productRef = db.collection("sellers").document(userId)
-                        .collection("products").document(productId)
-                    
-                    try await productRef.updateData([
-                        "warehouseStock.\(warehouseId)": response.newQuantity,
-                        "updatedAt": FieldValue.serverTimestamp()
-                    ])
+                // Проверяем минимальную цену (не ниже 70% от оригинала)
+                let minPrice = product.price * 0.7
+                if newPrice >= minPrice {
+                    try await updatePrice(productId: product.kaspiProductId, newPrice: newPrice)
+                    print("📉 \(product.name): позиция \(position) → цена снижена до \(newPrice) ₸")
+                } else {
+                    print("⚠️ \(product.name): достигнута минимальная цена")
                 }
             } else {
-                throw KaspiAPIError.stockUpdateError("Не удалось обновить остатки")
+                print("✅ \(product.name): позиция \(position) - оптимальная")
             }
             
-        } catch let error as NetworkError {
-            throw KaspiAPIError.from(error)
-        } catch let error as KaspiAPIError {
-            throw error
         } catch {
-            throw KaspiAPIError.stockUpdateError(error.localizedDescription)
+            print("❌ Ошибка проверки \(product.name): \(error)")
         }
     }
     
-    // MARK: - Utility Methods
+    /// Сохранить историю изменения цены
+    private func savePriceHistory(productId: String, newPrice: Double) async {
+        guard let userId = Auth.auth().currentUser?.uid else { return }
+        
+        do {
+            let history = [
+                "productId": productId,
+                "newPrice": newPrice,
+                "timestamp": FieldValue.serverTimestamp(),
+                "reason": "auto_dump",
+                "userId": userId
+            ]
+            
+            try await db.collection("sellers").document(userId)
+                .collection("priceHistory")
+                .addDocument(data: history)
+                
+        } catch {
+            print("⚠️ Не удалось сохранить историю цены: \(error)")
+        }
+    }
     
+    // MARK: - Вспомогательные методы
+    
+    /// Проверить здоровье API
     func checkAPIHealth() async -> Bool {
         do {
-            return try await validateToken()
+            _ = try await fetchAllProducts(page: 0, size: 1)
+            return true
         } catch {
-            ErrorHandler.handle(error, context: "KaspiAPIService.checkAPIHealth")
+            print("❌ API недоступен: \(error)")
             return false
         }
     }
     
+    /// Статистика API
     var apiStatistics: (requests: Int, lastSync: Date?) {
         // TODO: Implement request counting
         return (0, lastSyncDate)
     }
     
-    /// Получить список складов
-    func loadWarehouses() async throws -> [Warehouse] {
-        guard let token = apiToken else {
-            throw KaspiAPIError.tokenNotFound
-        }
-        
-        struct KaspiWarehouse: Codable {
-            let id: String
-            let name: String
-            let address: String
-            let city: String
-            let isActive: Bool
-            
-            enum CodingKeys: String, CodingKey {
-                case id = "warehouse_id"
-                case name
-                case address
-                case city
-                case isActive = "is_active"
-            }
-        }
-        
-        do {
-            let response: KaspiResponse<[KaspiWarehouse]> = try await networkManager.get(
-                endpoint: Endpoints.warehouses,
-                apiToken: token
-            )
-            
-            guard let kaspiWarehouses = response.data else {
-                throw KaspiAPIError.warehouseNotFound
-            }
-            
-            return kaspiWarehouses.map { kaspiWarehouse in
-                Warehouse(
-                    id: kaspiWarehouse.id,
-                    name: kaspiWarehouse.name,
-                    address: kaspiWarehouse.address,
-                    city: kaspiWarehouse.city,
-                    isActive: kaspiWarehouse.isActive
-                )
-            }
-            
-        } catch let error as NetworkError {
-            throw KaspiAPIError.from(error)
-        } catch let error as KaspiAPIError {
-            throw error
-        } catch {
-            throw KaspiAPIError.warehouseNotFound
-        }
+    /// Очистить сообщения об ошибках
+    func clearMessages() {
+        errorMessage = nil
     }
 }
 
-// MARK: - Warehouse Model
+// MARK: - Ошибки Kaspi API
 
-struct Warehouse: Identifiable, Codable {
-    let id: String
-    let name: String
-    let address: String
-    let city: String
-    let isActive: Bool
+enum KaspiAPIError: LocalizedError {
+    case tokenNotFound
+    case invalidToken
+    case authenticationFailed
+    case syncFailed(String)
+    case priceUpdateFailed(String)
+    
+    var errorDescription: String? {
+        switch self {
+        case .tokenNotFound:
+            return "X-TOKEN не найден. Получите токен из cookies Kaspi Seller Cabinet."
+        case .invalidToken:
+            return "Неверный X-TOKEN. Проверьте токен в настройках."
+        case .authenticationFailed:
+            return "Ошибка аутентификации Firebase"
+        case .syncFailed(let message):
+            return "Ошибка синхронизации: \(message)"
+        case .priceUpdateFailed(let message):
+            return "Ошибка обновления цены: \(message)"
+        }
+    }
 }
