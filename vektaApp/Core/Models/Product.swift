@@ -55,6 +55,7 @@ enum ProductStatus: String, CaseIterable, Codable {
     case inStock = "В наличии"
     case outOfStock = "Нет в наличии"
     case inactive = "Неактивен"
+    case available = "доступный"
     
     var iconName: String {
         switch self {
@@ -64,6 +65,9 @@ enum ProductStatus: String, CaseIterable, Codable {
             return "exclamationmark.triangle.fill"
         case .inactive:
             return "xmark.circle.fill"
+        case .available:
+            return "questionmark.circle.fill"
+            
         }
     }
 }

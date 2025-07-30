@@ -6,18 +6,17 @@
 //
 
 import Foundation
-import FirebaseAuth
 import FirebaseFirestore
-import Combine
+
 
 @MainActor
 final class ProductsViewModel: ObservableObject {
     @Published var products: [Product] = []
-    @Published var isLoading: Bool = false
+    @Published var isLoading = false
     @Published var errorMessage: String?
 
     private let apiService = KaspiAPIService()
-    private let firestore = Firestore.firestore()
+    private let firestore  = Firestore.firestore()
 
     /// Загружает все товары из Kaspi и сохраняет в Firestore
     func syncProducts() async {
@@ -27,6 +26,7 @@ final class ProductsViewModel: ObservableObject {
         do {
             // 1) Получаем товары с Kaspi
             let kpList = try await apiService.fetchAllProducts()
+
             // 2) Маппим в локальные Product
             let localProducts = kpList.map { kp in
                 Product(
@@ -37,7 +37,7 @@ final class ProductsViewModel: ObservableObject {
                     price: kp.price,
                     category: kp.category,
                     imageURL: kp.images.first ?? "",
-                    status: kp.isActive ? .available : .outOfStock,
+                    status: kp.isActive ? .inStock : .outOfStock,
                     warehouseStock: ["default": kp.stockCount],
                     createdAt: Date(),
                     updatedAt: Date(),
@@ -45,13 +45,15 @@ final class ProductsViewModel: ObservableObject {
                 )
             }
             self.products = localProducts
-            // 3) Сохраняем в Firestore
-            for p in localProducts {
-                try await firestore
-                    .collection("products")
-                    .document(p.id)
-                    .setData(from: p)
+
+            // 3) Сохраняем в Firestore батчем
+            let batch = firestore.batch()
+            for product in localProducts {
+                let ref = firestore.collection("products").document(product.id)
+                try batch.setData(from: product, forDocument: ref)
             }
+            try await batch.commit()
+
         } catch {
             errorMessage = error.localizedDescription
         }
