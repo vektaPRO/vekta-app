@@ -9,6 +9,7 @@ import SwiftUI
 import FirebaseFirestore
 import FirebaseAuth
 
+@MainActor
 class FirestoreSetupHelper: ObservableObject {
     
     @Published var isSetupComplete = false
@@ -46,20 +47,20 @@ class FirestoreSetupHelper: ObservableObject {
         
         let sellerData: [String: Any] = [
             "email": email,
-            "businessName": nil as String?,
-            "phone": nil as String?,
+            "businessName": NSNull(),
+            "phone": NSNull(),
             
             // Kaspi API настройки (пустые)
-            "kaspiApiToken": nil as String?,
-            "kaspiMerchantId": nil as String?,
-            "kaspiMerchantName": nil as String?,
+            "kaspiApiToken": NSNull(),
+            "kaspiMerchantId": NSNull(),
+            "kaspiMerchantName": NSNull(),
             "kaspiApiEnabled": false,
             
             // API статистика
-            "lastApiSync": nil as Timestamp?,
+            "lastApiSync": NSNull(),
             "totalApiRequests": 0,
             "apiRequestsToday": 0,
-            "lastApiError": nil as String?,
+            "lastApiError": NSNull(),
             
             // Подписка по умолчанию
             "subscriptionPlan": "Free",

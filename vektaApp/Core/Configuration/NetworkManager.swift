@@ -2,7 +2,7 @@
 //  NetworkManager.swift
 //  vektaApp
 //
-//  Обновленный менеджер для работы с сетевыми запросами
+//  Исправленный менеджер для работы с сетевыми запросами
 //
 
 import Foundation
@@ -335,12 +335,12 @@ struct KaspiResponse<T: Codable>: Codable {
     let success: Bool
     let data: T?
     let error: KaspiErrorResponse?
-    let pagination: KaspiPagination?
+    let pagination: KaspiPaginationResponse?
 }
 
 // MARK: - Pagination
 
-struct KaspiPagination: Codable {
+struct KaspiPaginationResponse: Codable {
     let page: Int
     let pageSize: Int
     let totalPages: Int
