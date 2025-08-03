@@ -3,6 +3,7 @@
 //  vektaApp
 //
 //  Полная система синхронизации всех данных между Kaspi API и Firestore
+//  ИСПРАВЛЕНО: убрана проблема с deinit и @MainActor
 //
 
 import Foundation
@@ -11,7 +12,6 @@ import FirebaseAuth
 import SwiftUI
 
 @MainActor
-
 class FirestoreSyncManager: ObservableObject {
     
     // MARK: - Published Properties
@@ -36,8 +36,6 @@ class FirestoreSyncManager: ObservableObject {
     private let syncInterval: TimeInterval = 300 // 5 минут
     private let batchSize = 50
     
-    
-    
     // MARK: - Initialization
     
     init() {
@@ -46,16 +44,20 @@ class FirestoreSyncManager: ObservableObject {
         loadLastSyncDate()
     }
     
+    // ИСПРАВЛЕНО: deinit теперь НЕ async
     deinit {
-        stopAutoSync()
-        removeListeners()
+        // Синхронно останавливаем таймер и убираем listeners
+        syncTimer?.invalidate()
+        syncTimer = nil
+        
+        ordersListener?.remove()
+        productsListener?.remove()
+        deliveriesListener?.remove()
     }
     
     // MARK: - Main Sync Methods
     
     /// Полная синхронизация всех данных
-    ///
-    /// 
     func fullSync() async {
         guard !isSyncing else { return }
         
@@ -322,15 +324,22 @@ class FirestoreSyncManager: ObservableObject {
     // MARK: - Auto Sync
     
     /// Запуск автоматической синхронизации
+    /// ИСПРАВЛЕНО: убран @MainActor, теперь можно вызывать из deinit
     private func startAutoSync() {
-        syncTimer = Timer.scheduledTimer(withTimeInterval: syncInterval, repeats: true) { [weak self] _ in
-            Task {
-                await self?.fullSync()
+        // Создаем таймер на главном потоке
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            
+            self.syncTimer = Timer.scheduledTimer(withTimeInterval: self.syncInterval, repeats: true) { [weak self] _ in
+                Task {
+                    await self?.fullSync()
+                }
             }
         }
     }
     
     /// Остановка автоматической синхронизации
+    /// ИСПРАВЛЕНО: убран @MainActor, теперь можно вызывать из deinit
     private func stopAutoSync() {
         syncTimer?.invalidate()
         syncTimer = nil
@@ -356,7 +365,7 @@ class FirestoreSyncManager: ObservableObject {
     
     /// Загрузка даты последней синхронизации
     private func loadLastSyncDate() {
-        if let savedDate = UserDefaults.standard.object(forKeyValue "lastSyncDate") as? Date {
+        if let savedDate = UserDefaults.standard.object(forKey: "lastSyncDate") as? Date {
             lastSyncDate = savedDate
         }
     }
@@ -366,13 +375,6 @@ class FirestoreSyncManager: ObservableObject {
         if let date = lastSyncDate {
             UserDefaults.standard.set(date, forKey: "lastSyncDate")
         }
-    }
-    
-    /// Удаление слушателей
-    private func removeListeners() {
-        ordersListener?.remove()
-        productsListener?.remove()
-        deliveriesListener?.remove()
     }
     
     /// Очистка сообщений через 3 секунды
@@ -386,7 +388,7 @@ class FirestoreSyncManager: ObservableObject {
     // MARK: - Public Interface
     
     /// Принудительная синхронизация
-    func forcSync() async {
+    func forceSync() async {
         await fullSync()
     }
     
@@ -444,5 +446,4 @@ extension Array {
             Array(self[$0..<Swift.min($0 + size, count)])
         }
     }
-    
 }

@@ -14,9 +14,7 @@ struct KaspiDashboardView: View {
     @Environment(\.dismiss) private var dismiss
     
     @State private var showingSettings = false
-    @State private var showingOrderDetails = false
     @State private var selectedOrder: KaspiOrder?
-    @State private var showingDeliveryDetails = false
     @State private var selectedDelivery: DeliveryConfirmation?
     
     var body: some View {
@@ -44,6 +42,8 @@ struct KaspiDashboardView: View {
                     
                     Spacer(minLength: 100)
                 }
+                .padding(.top, 0)
+            }
             .navigationTitle("Kaspi Integration")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
@@ -64,33 +64,33 @@ struct KaspiDashboardView: View {
             .refreshable {
                 await kaspiManager.refreshData()
             }
-        }
-        .sheet(isPresented: $showingSettings) {
-            KaspiSettingsView()
-        }
-        .sheet(item: $selectedOrder) { order in
-            KaspiOrderDetailView(order: order, kaspiManager: kaspiManager)
-        }
-        .sheet(item: $selectedDelivery) { delivery in
-            DeliveryDetailView(delivery: delivery, kaspiManager: kaspiManager)
-        }
-        .alert("Ошибка", isPresented: .constant(kaspiManager.errorMessage != nil)) {
-            Button("OK") {
-                kaspiManager.clearMessages()
+            .sheet(isPresented: $showingSettings) {
+                KaspiSettingsView()
             }
-        } message: {
-            Text(kaspiManager.errorMessage ?? "")
-        }
-        .alert("Успех", isPresented: .constant(kaspiManager.successMessage != nil)) {
-            Button("OK") {
-                kaspiManager.clearMessages()
+            .sheet(item: $selectedOrder) { order in
+                KaspiOrderDetailView(order: order, kaspiManager: kaspiManager)
             }
-        } message: {
-            Text(kaspiManager.successMessage ?? "")
-        }
-        .onAppear {
-            Task {
-                await kaspiManager.syncData()
+            .sheet(item: $selectedDelivery) { delivery in
+                KaspiDeliveryDetailView(delivery: delivery, kaspiManager: kaspiManager)
+            }
+            .alert("Ошибка", isPresented: .constant(kaspiManager.errorMessage != nil)) {
+                Button("OK") {
+                    kaspiManager.clearMessages()
+                }
+            } message: {
+                Text(kaspiManager.errorMessage ?? "")
+            }
+            .alert("Успех", isPresented: .constant(kaspiManager.successMessage != nil)) {
+                Button("OK") {
+                    kaspiManager.clearMessages()
+                }
+            } message: {
+                Text(kaspiManager.successMessage ?? "")
+            }
+            .onAppear {
+                Task {
+                    await kaspiManager.syncData()
+                }
             }
         }
     }
@@ -98,10 +98,10 @@ struct KaspiDashboardView: View {
 
 // MARK: - View Components
 
-extension KaspiDashboardView {
+private extension KaspiDashboardView {
     
     // 🔗 Connection Status
-    private var connectionStatusSection: some View {
+    var connectionStatusSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Статус подключения")
                 .font(.headline)
@@ -115,10 +115,11 @@ extension KaspiDashboardView {
                 showingSettings = true
             }
         }
+        .padding(.horizontal, 20)
     }
     
     // 📊 Quick Stats
-    private var quickStatsSection: some View {
+    var quickStatsSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Статистика за сегодня")
                 .font(.headline)
@@ -155,10 +156,11 @@ extension KaspiDashboardView {
                 )
             }
         }
+        .padding(.horizontal, 20)
     }
     
     // ⚙️ Auto Processing
-    private var autoProcessingSection: some View {
+    var autoProcessingSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Автоматизация")
                 .font(.headline)
@@ -173,10 +175,11 @@ extension KaspiDashboardView {
                 }
             )
         }
+        .padding(.horizontal, 20)
     }
     
     // 📦 Recent Orders
-    private var recentOrdersSection: some View {
+    var recentOrdersSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
                 Text("Новые заказы")
@@ -200,11 +203,11 @@ extension KaspiDashboardView {
                 LoadingView("Загружаем заказы...")
                     .frame(height: 150)
             } else if kaspiManager.newOrders.isEmpty {
-                EmptyOrdersView()
+                DashboardEmptyOrdersView()
             } else {
                 VStack(spacing: 8) {
                     ForEach(Array(kaspiManager.newOrders.prefix(5)), id: \.id) { order in
-                        KaspiOrderCard(order: order) {
+                        DashboardKaspiOrderCard(order: order) {
                             selectedOrder = order
                         }
                     }
@@ -218,31 +221,33 @@ extension KaspiDashboardView {
                 }
             }
         }
+        .padding(.horizontal, 20)
     }
     
     // 🚚 Active Deliveries
-    private var activeDeliveriesSection: some View {
+    var activeDeliveriesSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Активные доставки")
                 .font(.headline)
                 .fontWeight(.semibold)
             
             if kaspiManager.deliveries.isEmpty {
-                EmptyDeliveriesView()
+                DashboardEmptyDeliveriesView()
             } else {
                 VStack(spacing: 8) {
                     ForEach(Array(kaspiManager.deliveries.filter { $0.status != .confirmed }.prefix(5)), id: \.id) { delivery in
-                        DeliveryCard(delivery: delivery) {
+                        DashboardDeliveryCard(delivery: delivery) {
                             selectedDelivery = delivery
                         }
                     }
                 }
             }
         }
+        .padding(.horizontal, 20)
     }
     
     // 📦 Product Sync
-    private var productSyncSection: some View {
+    var productSyncSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Синхронизация товаров")
                 .font(.headline)
@@ -258,6 +263,7 @@ extension KaspiDashboardView {
                 }
             )
         }
+        .padding(.horizontal, 20)
     }
 }
 
@@ -273,7 +279,6 @@ struct KaspiConnectionCard: View {
     var body: some View {
         Button(action: onTap) {
             HStack(spacing: 16) {
-                // Status Icon
                 Image(systemName: isConnected ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
                     .font(.system(size: 40))
                     .foregroundColor(isConnected ? .green : .orange)
@@ -286,7 +291,6 @@ struct KaspiConnectionCard: View {
                         
                         Spacer()
                         
-                        // Connection indicator
                         HStack(spacing: 4) {
                             Circle()
                                 .fill(isConnected ? Color.green : Color.red)
@@ -309,8 +313,8 @@ struct KaspiConnectionCard: View {
                             HStack(spacing: 8) {
                                 Label(autoProcessing ? "Автообработка вкл" : "Автообработка выкл",
                                       systemImage: autoProcessing ? "play.circle.fill" : "pause.circle.fill")
-                                    .font(.caption)
-                                    .foregroundColor(autoProcessing ? .blue : .secondary)
+                                .font(.caption)
+                                .foregroundColor(autoProcessing ? .blue : .secondary)
                             }
                         }
                     } else {
@@ -366,12 +370,10 @@ struct AutoProcessingCard: View {
             if isEnabled {
                 HStack(spacing: 8) {
                     Image(systemName: "info.circle")
-                        .foregroundColor(.blue)
                         .font(.caption)
                     
                     Text("Проверка новых заказов каждые 5 минут")
                         .font(.caption)
-                        .foregroundColor(.blue)
                 }
                 .padding(.top, 4)
             }
@@ -382,15 +384,14 @@ struct AutoProcessingCard: View {
     }
 }
 
-/// Kaspi Order Card
-struct KaspiOrderCard: View {
+/// Dashboard Kaspi Order Card
+struct DashboardKaspiOrderCard: View {
     let order: KaspiOrder
     let onTap: () -> Void
     
     var body: some View {
         Button(action: onTap) {
             HStack(spacing: 12) {
-                // Order Status Indicator
                 Circle()
                     .fill(statusColor)
                     .frame(width: 12, height: 12)
@@ -451,6 +452,70 @@ struct KaspiOrderCard: View {
     }
 }
 
+/// Dashboard Delivery Card
+struct DashboardDeliveryCard: View {
+    let delivery: DeliveryConfirmation
+    let onTap: () -> Void
+    
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 12) {
+                Circle()
+                    .fill(statusColor)
+                    .frame(width: 12, height: 12)
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Доставка #\(delivery.trackingNumber)")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    
+                    Text(delivery.deliveryAddress)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                }
+                
+                Spacer()
+                
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text(delivery.status.rawValue)
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundColor(statusColor)
+                    
+                    Text(DateFormatter.shortTime.string(from: delivery.createdAt))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                Image(systemName: "chevron.right")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+            .padding(12)
+            .background(Color(UIColor.systemBackground))
+            .cornerRadius(8)
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(statusColor.opacity(0.2), lineWidth: 1)
+            )
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+    
+    private var statusColor: Color {
+        switch delivery.status {
+        case .pending: return .gray
+        case .inTransit: return .blue
+        case .arrived: return .orange
+        case .awaitingCode: return .yellow
+        case .confirmed: return .green
+        case .failed: return .red
+        case .cancelled: return .red
+        }
+    }
+}
+
 /// Product Sync Card
 struct ProductSyncCard: View {
     let totalProducts: Int
@@ -499,7 +564,8 @@ struct ProductSyncCard: View {
 }
 
 /// Empty States
-struct EmptyOrdersView: View {
+
+struct DashboardEmptyOrdersView: View {
     var body: some View {
         VStack(spacing: 12) {
             Image(systemName: "doc.text")
@@ -521,7 +587,7 @@ struct EmptyOrdersView: View {
     }
 }
 
-struct EmptyDeliveriesView: View {
+struct DashboardEmptyDeliveriesView: View {
     var body: some View {
         VStack(spacing: 12) {
             Image(systemName: "truck.box")
@@ -715,6 +781,42 @@ struct KaspiOrderDetailView: View {
     }
 }
 
+/// Kaspi Delivery Detail View
+struct KaspiDeliveryDetailView: View {
+    let delivery: DeliveryConfirmation
+    @ObservedObject var kaspiManager: KaspiIntegrationManager
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                VStack(spacing: 20) {
+                    Text("Детали доставки")
+                        .font(.title)
+                    
+                    Text("Заказ #\(delivery.trackingNumber)")
+                        .font(.headline)
+                    
+                    Text("Статус: \(delivery.status.rawValue)")
+                        .font(.subheadline)
+                    
+                    Spacer()
+                }
+                .padding()
+            }
+            .navigationTitle("Доставка")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Закрыть") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// Kaspi Order Entry Card
 struct KaspiOrderEntryCard: View {
     let entry: KaspiOrderEntry
@@ -767,13 +869,11 @@ struct KaspiOrderEntryCard: View {
     }
 }
 
-// MARK: - Make KaspiOrder Identifiable
-extension KaspiOrder: Identifiable {}
-extension DeliveryConfirmation: Identifiable {}
+// MARK: - Preview
 
-#Preview {
-    KaspiDashboardView()
+struct KaspiDashboardView_Previews: PreviewProvider {
+    static var previews: some View {
+        // Здесь можно подставить моковые менеджеры, если они умеют инъекцию или использовать реальные с тестовыми данными.
+        KaspiDashboardView()
+    }
 }
-                .padding(.horizontal, 20)
-                .padding(.top, 20)
-            }

@@ -354,6 +354,8 @@ struct ProductCard: View {
         case .inStock: return .green
         case .outOfStock: return .orange
         case .inactive: return .gray
+        case .available: return .blue
+            
         }
     }
 }
