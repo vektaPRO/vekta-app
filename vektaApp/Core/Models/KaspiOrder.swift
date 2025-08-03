@@ -1,4 +1,4 @@
-import Foundation
+/*import Foundation
 
 // MARK: - Основная модель заказа Kaspi
 
@@ -31,3 +31,4 @@ struct KaspiOrderItem: Codable, Equatable {
     let quantity: Int
     let price: Double
 }
+*/

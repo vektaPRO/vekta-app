@@ -4,7 +4,7 @@
 //
 //  Конфигурация для работы с различными API окружениями
 //
-
+// это единый кофигуратор всех настроек api
 import Foundation
 import UIKit
 // MARK: - API Environment
