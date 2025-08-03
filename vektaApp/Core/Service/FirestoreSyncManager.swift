@@ -11,6 +11,7 @@ import FirebaseAuth
 import SwiftUI
 
 @MainActor
+
 class FirestoreSyncManager: ObservableObject {
     
     // MARK: - Published Properties
@@ -35,6 +36,8 @@ class FirestoreSyncManager: ObservableObject {
     private let syncInterval: TimeInterval = 300 // 5 минут
     private let batchSize = 50
     
+    
+    
     // MARK: - Initialization
     
     init() {
@@ -51,6 +54,8 @@ class FirestoreSyncManager: ObservableObject {
     // MARK: - Main Sync Methods
     
     /// Полная синхронизация всех данных
+    ///
+    /// 
     func fullSync() async {
         guard !isSyncing else { return }
         
@@ -439,4 +444,5 @@ extension Array {
             Array(self[$0..<Swift.min($0 + size, count)])
         }
     }
+    
 }
