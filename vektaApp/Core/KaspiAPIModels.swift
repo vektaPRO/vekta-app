@@ -18,6 +18,41 @@ struct KaspiAPIResponse<T: Codable>: Codable {
     let errors: [KaspiError]?
     let warnings: [KaspiWarning]?
 }
+struct KaspiImportSchema: Codable {
+    let type: String?
+    let properties: [String: SchemaProperty]
+    let required: [String]
+    
+    struct SchemaProperty: Codable {
+        let type: String
+        let description: String?
+        let format: String?
+        let items: SchemaItems?
+        let enumValues: [String]?  // Возможные значения поля
+        let minLength: Int?
+        let maxLength: Int?
+        let minimum: Double?
+        let maximum: Double?
+        
+        enum CodingKeys: String, CodingKey {
+            case type, description, format, items
+            case enumValues = "enum"
+            case minLength, maxLength, minimum, maximum
+        }
+    }
+    
+    struct SchemaItems: Codable {
+        let type: String
+        let format: String?
+    }
+}
+    
+    struct SchemaItems: Codable {
+        let type: String
+        let format: String?
+    }
+
+
 
 struct KaspiIncludedItem: Codable {
     let type: String

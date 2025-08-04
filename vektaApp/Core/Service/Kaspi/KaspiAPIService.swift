@@ -87,8 +87,11 @@ final class KaspiAPIService: ObservableObject {
     // MARK: - Products API
     
     /// Получить JSON схему для импорта товаров
-    func getProductImportSchema() async throws -> [String: Any] {
-        return try await performRequest(endpoint: "/products/import/schema", method: .get)
+    func getProductImportSchema() async throws -> KaspiImportSchema {
+        return try await performRequest(
+            endpoint: "/products/import/schema",
+            method: .get
+        )
     }
     
     /// Получить список категорий
@@ -506,7 +509,7 @@ final class KaspiAPIService: ObservableObject {
     
     /// Обработать новые заказы (принять и передать на доставку)
     func processNewOrders() async throws {
-        let newOrdersResponse = try await getOrders(state: .new, size: 50)
+        let newOrdersResponse = try await getOrders(size: 50, state: .new)
         let newOrders = newOrdersResponse.data ?? []
         
         for order in newOrders {
@@ -673,4 +676,5 @@ final class KaspiAPIService: ObservableObject {
         errorMessage = nil
         successMessage = nil
     }
+    
 }
