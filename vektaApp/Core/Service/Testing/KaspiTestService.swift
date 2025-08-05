@@ -116,25 +116,47 @@ final class KaspiTestService: ObservableObject {
     /// Тест 2: Схема импорта
     private func testImportSchema() async -> TestResult {
         let startTime = Date()
-        
+
         do {
-            let schema = try await kaspiAPI.getProductImportSchema()
+            let schema = try await kaspiAPI.getProductImportSchema() // KaspiImportSchema
             let duration = Date().timeIntervalSince(startTime)
-            
-            // Проверяем базовые поля в схеме
-            let hasRequiredFields = schema.keys.contains("sku") ||
-                                  schema.keys.contains("title") ||
-                                  schema.keys.contains("properties")
-            
+
+            // Ожидаемые поля по инструкции
+            let expectedFields = ["sku", "title", "brand", "description", "category", "images", "attributes"]
+
+            // Берём реальные названия полей из properties и приводим к нижнему регистру
+            let available = schema.properties.keys.map { $0.lowercased() }
+
+            // Какие из ожидаемых есть
+            let found = expectedFields.filter { available.contains($0.lowercased()) }
+
+            // Обязательные минимальные: sku и title
+            let hasMinimal = available.contains("sku") && available.contains("title")
+
+            let status: TestStatus
+            let message: String
+
+            if hasMinimal {
+                status = .passed
+                let extras = found.filter { $0 != "sku" && $0 != "title" }
+                message = "Есть обязательные поля (sku, title)" +
+                          (extras.isEmpty ? "" : " и дополнительно: \(extras.joined(separator: ", "))")
+            } else if !found.isEmpty {
+                status = .partial
+                message = "Присутствуют поля: \(found.joined(separator: ", ")), но не хватает sku и/или title"
+            } else {
+                status = .partial
+                message = "Схема получена, но не содержит ожидаемых полей: \(expectedFields.joined(separator: ", "))"
+            }
+
             return TestResult(
                 name: "Схема импорта",
                 description: "Получение JSON схемы для товаров",
-                status: hasRequiredFields ? .passed : .partial,
+                status: status,
                 duration: duration,
-                message: hasRequiredFields ? "Схема получена успешно" : "Схема получена, но структура неожиданная",
+                message: message,
                 endpoint: "/products/import/schema"
             )
-            
         } catch {
             let duration = Date().timeIntervalSince(startTime)
             return TestResult(
